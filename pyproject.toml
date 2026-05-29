@@ -31,6 +31,8 @@ gemini = ["google-generativeai>=0.5"]
 dashboard = ["fastapi>=0.110", "uvicorn>=0.27"]
 # MCP server — expose recall memory to any MCP-aware agent
 mcp = ["mcp>=1.0"]
+# OpenTelemetry / OpenInference span export
+otel = ["opentelemetry-sdk>=1.20", "opentelemetry-exporter-otlp>=1.20"]
 # Everything
 all = [
     "sentence-transformers>=2.2",
@@ -40,6 +42,8 @@ all = [
     "fastapi>=0.110",
     "uvicorn>=0.27",
     "mcp>=1.0",
+    "opentelemetry-sdk>=1.20",
+    "opentelemetry-exporter-otlp>=1.20",
 ]
 dev = ["pytest>=7.0", "ruff>=0.4"]
 

@@ -153,6 +153,18 @@ class Recall:
                 kind="chat",
             )
         )
+        if getattr(self.config, "otel_export", False):
+            try:
+                from . import otel_export
+                otel_export.export({
+                    "model": result.model, "provider": result.provider,
+                    "input_tokens": result.input_tokens,
+                    "output_tokens": result.output_tokens,
+                    "cost_usd": cost, "prompt": prompt,
+                    "completion": result.text, "kind": "chat",
+                })
+            except Exception:  # noqa: BLE001 — export must never break chat
+                pass
         captured = self._auto_capture(
             prompt, auto_memory, scope, provider, model, api_key, base_url,
             session_id, parent_id,

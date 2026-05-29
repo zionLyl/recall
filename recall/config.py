@@ -35,6 +35,7 @@ class Config:
     recency_weight: float = 0.0            # 0 = pure relevance; >0 blends recency/usage into retrieval ranking
     graph_weight: float = 0.0              # 0 = off; >0 blends graph-connected memories into retrieval (needs relations)
     stream: bool = True                    # stream chat output token-by-token
+    otel_export: bool = False              # opt-in: mirror calls as OpenTelemetry/OpenInference spans
     active_scope: str = "default"          # which memory scope is active
     extras: dict = field(default_factory=dict)
 
