@@ -38,7 +38,13 @@ CREATE TABLE IF NOT EXISTS memories (
     source     TEXT NOT NULL DEFAULT 'manual',
     embedding  BLOB,
     created_at REAL NOT NULL,
-    updated_at REAL NOT NULL
+    updated_at REAL NOT NULL,
+    -- lifecycle: usage tracking, soft-forget, temporal validity
+    hit_count  INTEGER NOT NULL DEFAULT 0,
+    last_used  REAL,
+    valid_from REAL,
+    valid_to   REAL,
+    active     INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS traces (
@@ -64,6 +70,11 @@ MIGRATIONS = [
     "ALTER TABLE memories ADD COLUMN scope TEXT NOT NULL DEFAULT 'default'",
     "ALTER TABLE memories ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'",
     "ALTER TABLE traces ADD COLUMN scope TEXT NOT NULL DEFAULT 'default'",
+    "ALTER TABLE memories ADD COLUMN hit_count INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE memories ADD COLUMN last_used REAL",
+    "ALTER TABLE memories ADD COLUMN valid_from REAL",
+    "ALTER TABLE memories ADD COLUMN valid_to REAL",
+    "ALTER TABLE memories ADD COLUMN active INTEGER NOT NULL DEFAULT 1",
 ]
 
 
@@ -76,6 +87,9 @@ class Memory:
     scope: str = "default"
     source: str = "manual"
     score: float = 0.0  # populated during search
+    hit_count: int = 0
+    last_used: Optional[float] = None
+    active: int = 1
 
 
 @dataclass
@@ -156,14 +170,15 @@ class Store:
         now = time.time()
         tag_str = ",".join(sorted(set(t.strip() for t in (tags or []) if t.strip())))
         cur = self.conn.execute(
-            "INSERT INTO memories (content, tags, scope, source, embedding, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (content, tag_str, scope, source, embedding, now, now),
+            "INSERT INTO memories (content, tags, scope, source, embedding, created_at, "
+            "updated_at, valid_from, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)",
+            (content, tag_str, scope, source, embedding, now, now, now),
         )
         self.conn.commit()
         return int(cur.lastrowid)
 
     def _row_to_memory(self, r, score: float = 0.0) -> Memory:
+        keys = r.keys()
         return Memory(
             id=r["id"],
             content=r["content"],
@@ -172,28 +187,37 @@ class Store:
             scope=r["scope"],
             source=r["source"],
             score=score,
+            hit_count=r["hit_count"] if "hit_count" in keys else 0,
+            last_used=r["last_used"] if "last_used" in keys else None,
+            active=r["active"] if "active" in keys else 1,
         )
 
-    def all_memories(self, scope: Optional[str] = None) -> list[Memory]:
+    def all_memories(
+        self, scope: Optional[str] = None, include_inactive: bool = False
+    ) -> list[Memory]:
+        where, params = [], []
         if scope:
-            rows = self.conn.execute(
-                "SELECT * FROM memories WHERE scope = ? ORDER BY created_at DESC", (scope,)
-            ).fetchall()
-        else:
-            rows = self.conn.execute(
-                "SELECT * FROM memories ORDER BY created_at DESC"
-            ).fetchall()
+            where.append("scope = ?")
+            params.append(scope)
+        if not include_inactive:
+            where.append("active = 1")
+        clause = (" WHERE " + " AND ".join(where)) if where else ""
+        rows = self.conn.execute(
+            f"SELECT * FROM memories{clause} ORDER BY created_at DESC", params
+        ).fetchall()
         return [self._row_to_memory(r) for r in rows]
 
     def all_memories_with_embeddings(
-        self, scope: Optional[str] = None
+        self, scope: Optional[str] = None, include_inactive: bool = False
     ) -> list[tuple[int, str, list[str], Optional[bytes], float, str, str]]:
+        where, params = [], []
         if scope:
-            rows = self.conn.execute(
-                "SELECT * FROM memories WHERE scope = ?", (scope,)
-            ).fetchall()
-        else:
-            rows = self.conn.execute("SELECT * FROM memories").fetchall()
+            where.append("scope = ?")
+            params.append(scope)
+        if not include_inactive:
+            where.append("active = 1")
+        clause = (" WHERE " + " AND ".join(where)) if where else ""
+        rows = self.conn.execute(f"SELECT * FROM memories{clause}", params).fetchall()
         return [
             (
                 r["id"], r["content"], [t for t in r["tags"].split(",") if t],
@@ -206,6 +230,56 @@ class Store:
         cur = self.conn.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
         self.conn.commit()
         return cur.rowcount > 0
+
+    # ---- lifecycle ------------------------------------------------------
+    def touch_memories(self, ids: Iterable[int]) -> None:
+        """Record a retrieval hit: bump hit_count + last_used for these ids."""
+        ids = list(ids)
+        if not ids:
+            return
+        now = time.time()
+        qmarks = ",".join("?" * len(ids))
+        self.conn.execute(
+            f"UPDATE memories SET hit_count = hit_count + 1, last_used = ? "
+            f"WHERE id IN ({qmarks})",
+            [now, *ids],
+        )
+        self.conn.commit()
+
+    def soft_delete(self, memory_id: int) -> bool:
+        """Soft-forget: mark inactive and stamp valid_to, keeping history."""
+        cur = self.conn.execute(
+            "UPDATE memories SET active = 0, valid_to = ? WHERE id = ? AND active = 1",
+            (time.time(), memory_id),
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def prune(
+        self,
+        scope: Optional[str] = None,
+        older_than_days: Optional[float] = None,
+        unused: bool = False,
+    ) -> int:
+        """Soft-forget stale memories. With ``older_than_days``, forgets memories
+        created before that cutoff; with ``unused=True``, restricts to ones never
+        retrieved (hit_count = 0). Returns how many were forgotten."""
+        where = ["active = 1"]
+        params: list = []
+        if scope:
+            where.append("scope = ?")
+            params.append(scope)
+        if older_than_days is not None:
+            where.append("created_at < ?")
+            params.append(time.time() - older_than_days * 86400)
+        if unused:
+            where.append("hit_count = 0")
+        cur = self.conn.execute(
+            f"UPDATE memories SET active = 0, valid_to = ? WHERE {' AND '.join(where)}",
+            [time.time(), *params],
+        )
+        self.conn.commit()
+        return cur.rowcount
 
     def get_memory(self, memory_id: int) -> Optional[Memory]:
         row = self.conn.execute(
@@ -250,7 +324,7 @@ class Store:
 
     def memory_exists(self, content: str, scope: str = "default") -> bool:
         row = self.conn.execute(
-            "SELECT 1 FROM memories WHERE content = ? AND scope = ? LIMIT 1",
+            "SELECT 1 FROM memories WHERE content = ? AND scope = ? AND active = 1 LIMIT 1",
             (content.strip(), scope),
         ).fetchone()
         return row is not None
@@ -277,7 +351,7 @@ class Store:
                 sql = (
                     "SELECT m.*, bm25(memories_fts) AS rank FROM memories_fts "
                     "JOIN memories m ON m.id = memories_fts.rowid "
-                    "WHERE memories_fts MATCH ?"
+                    "WHERE memories_fts MATCH ? AND m.active = 1"
                 )
                 params: list = [match]
                 if scope:
@@ -295,14 +369,15 @@ class Store:
         if scope:
             rows = self.conn.execute(
                 "SELECT * FROM memories "
-                "WHERE (content LIKE ? OR tags LIKE ?) AND scope = ? "
+                "WHERE (content LIKE ? OR tags LIKE ?) AND scope = ? AND active = 1 "
                 "ORDER BY created_at DESC LIMIT ?",
                 (like, like, scope, limit),
             ).fetchall()
         else:
             rows = self.conn.execute(
                 "SELECT * FROM memories "
-                "WHERE content LIKE ? OR tags LIKE ? ORDER BY created_at DESC LIMIT ?",
+                "WHERE (content LIKE ? OR tags LIKE ?) AND active = 1 "
+                "ORDER BY created_at DESC LIMIT ?",
                 (like, like, limit),
             ).fetchall()
         return [self._row_to_memory(r, score=1.0) for r in rows]

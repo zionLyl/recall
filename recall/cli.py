@@ -159,11 +159,32 @@ def list_memories(
 
 
 @app.command()
-def forget(memory_id: int = typer.Argument(..., help="Memory ID to delete.")):
-    """Delete a memory by ID."""
+def forget(
+    memory_id: int = typer.Argument(..., help="Memory ID to delete."),
+    soft: bool = typer.Option(False, "--soft", help="Soft-forget (deactivate, keep history) instead of hard delete."),
+):
+    """Delete a memory by ID (hard delete, or --soft to keep history)."""
     r = _r()
-    ok = r.store.delete_memory(memory_id)
-    console.print(f"[green]✓[/green] Forgot #{memory_id}" if ok else f"[red]✗[/red] No memory #{memory_id}")
+    ok = r.forget(memory_id, soft=soft)
+    verb = "Soft-forgot" if soft else "Forgot"
+    console.print(f"[green]✓[/green] {verb} #{memory_id}" if ok else f"[red]✗[/red] No memory #{memory_id}")
+    r.close()
+
+
+@app.command()
+def prune(
+    older_than: float = typer.Option(None, "--older-than", help="Soft-forget memories older than N days."),
+    unused: bool = typer.Option(False, "--unused", help="Restrict to memories never retrieved (hit_count = 0)."),
+    all_scopes: bool = typer.Option(False, "--all", help="Prune across all scopes."),
+):
+    """Soft-forget stale memories (deactivate, keeping history)."""
+    r = _r()
+    if older_than is None and not unused:
+        console.print("[yellow]Specify --older-than DAYS and/or --unused.[/yellow]")
+        r.close()
+        raise typer.Exit(1)
+    n = r.prune(scope=None if all_scopes else r.scope, older_than_days=older_than, unused=unused)
+    console.print(f"[green]✓[/green] Soft-forgot {n} memory/-ies.")
     r.close()
 
 
@@ -436,7 +457,8 @@ def config_show():
     table.add_column("Value")
     for k in ("default_provider", "default_model", "daily_budget_usd",
               "budget_enforce", "auto_memory", "extraction_mode", "extraction_model",
-              "memory_inject_limit", "dedupe_similarity", "stream", "active_scope"):
+              "memory_inject_limit", "dedupe_similarity", "recency_weight",
+              "stream", "active_scope"):
         table.add_row(k, str(getattr(cfg, k)))
     console.print(table)
 

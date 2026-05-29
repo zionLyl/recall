@@ -46,14 +46,19 @@ def _cosine(a: list[float], b: list[float]) -> float:
     return dot / (na * nb)
 
 
-def _rrf(rankings: list[list[int]], k: int = 60) -> dict[int, float]:
+def _rrf(
+    rankings: list[list[int]], k: int = 60, weights: Optional[list[float]] = None
+) -> dict[int, float]:
     """Reciprocal Rank Fusion: combine several ranked id-lists into one score
-    map. An item's score is the sum of 1/(k + rank) across the lists it appears
-    in (rank is 0-based), so items ranked highly by multiple signals rise."""
+    map. An item's score is the weighted sum of 1/(k + rank) across the lists it
+    appears in (rank is 0-based), so items ranked highly by multiple signals
+    rise. Per-ranking ``weights`` let one signal (e.g. recency) count for less."""
+    if weights is None:
+        weights = [1.0] * len(rankings)
     scores: dict[int, float] = {}
-    for ranking in rankings:
+    for ranking, weight in zip(rankings, weights):
         for rank, item_id in enumerate(ranking):
-            scores[item_id] = scores.get(item_id, 0.0) + 1.0 / (k + rank)
+            scores[item_id] = scores.get(item_id, 0.0) + weight * (1.0 / (k + rank))
     return scores
 
 
@@ -177,11 +182,16 @@ class MemoryEngine:
                 })
         return merges
 
-    def recall(self, query: str, limit: int = 5, scope: Optional[str] = None) -> list[Memory]:
+    def recall(
+        self, query: str, limit: int = 5, scope: Optional[str] = None,
+        recency_weight: float = 0.0,
+    ) -> list[Memory]:
         model = _get_model()
         if model is None:
             # No embeddings: keyword/BM25 search is all we have.
-            return self.store.keyword_search(query, limit=limit, scope=scope)
+            hits = self.store.keyword_search(query, limit=limit, scope=scope)
+            self.store.touch_memories([m.id for m in hits])
+            return hits
 
         # Semantic ranking over all embedded memories.
         qvec = model.encode([query])[0].tolist()
@@ -203,29 +213,41 @@ class MemoryEngine:
 
         if not semantic and not keyword:
             return []
-        if not keyword:
-            return semantic[:limit]
-        if not semantic:
-            return keyword[:limit]
 
-        # Hybrid: fuse the two rankings with Reciprocal Rank Fusion so a memory
-        # that ranks well by *either* signal surfaces, and one strong on *both*
-        # wins. This is what mem0 / Zep do (semantic + BM25), kept dependency-free.
+        # Hybrid: fuse rankings with Reciprocal Rank Fusion so a memory ranked
+        # well by *either* signal surfaces, and one strong on *both* wins (mem0 /
+        # Zep do semantic + BM25). Kept dependency-free. RRF handles empty lists.
         by_id: dict[int, Memory] = {}
         for m in semantic[:pool] + keyword:
             by_id.setdefault(m.id, m)
-        fused = _rrf([[m.id for m in semantic[:pool]], [m.id for m in keyword]])
+        rankings = [[m.id for m in semantic[:pool]], [m.id for m in keyword]]
+        weights = [1.0, 1.0]
+        if recency_weight > 0 and by_id:
+            # Lifecycle ranking: most-recently-used, then most-hit, ranks first.
+            life = sorted(
+                by_id.values(),
+                key=lambda m: (m.last_used or m.created_at, m.hit_count),
+                reverse=True,
+            )
+            rankings.append([m.id for m in life])
+            weights.append(recency_weight)
+
+        fused = _rrf(rankings, weights=weights)
         ranked_ids = sorted(fused, key=lambda i: fused[i], reverse=True)[:limit]
         out: list[Memory] = []
         for mid in ranked_ids:
             m = by_id[mid]
             m.score = round(fused[mid], 4)
             out.append(m)
+        self.store.touch_memories([m.id for m in out])
         return out
 
-    def build_context(self, query: str, limit: int = 5, scope: Optional[str] = None) -> str:
+    def build_context(
+        self, query: str, limit: int = 5, scope: Optional[str] = None,
+        recency_weight: float = 0.0,
+    ) -> str:
         """Return a context block to prepend to a prompt."""
-        hits = self.recall(query, limit=limit, scope=scope)
+        hits = self.recall(query, limit=limit, scope=scope, recency_weight=recency_weight)
         if not hits:
             return ""
         lines = ["[Things I remember about you]"]

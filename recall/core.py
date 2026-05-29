@@ -82,7 +82,25 @@ class Recall:
         return self.memory.dedupe(scope=scope, threshold=threshold)
 
     def recall_memories(self, query: str, limit: int = 5, scope: Optional[str] = None):
-        return self.memory.recall(query, limit=limit, scope=scope or self.scope)
+        return self.memory.recall(
+            query, limit=limit, scope=scope or self.scope,
+            recency_weight=getattr(self.config, "recency_weight", 0.0),
+        )
+
+    def forget(self, memory_id: int, soft: bool = False) -> bool:
+        if soft:
+            return self.store.soft_delete(memory_id)
+        return self.store.delete_memory(memory_id)
+
+    def prune(
+        self,
+        scope: Optional[str] = None,
+        older_than_days: Optional[float] = None,
+        unused: bool = False,
+    ) -> int:
+        return self.store.prune(
+            scope=scope, older_than_days=older_than_days, unused=unused
+        )
 
     # ---- chat (memory + tracing wrapped around any model) ---------------
     def _resolve(self, provider, model, scope, memory_limit):
@@ -102,7 +120,10 @@ class Recall:
     def _inject(self, prompt, system, use_memory, memory_limit, scope) -> Optional[str]:
         final_system = system or ""
         if use_memory:
-            ctx = self.memory.build_context(prompt, limit=memory_limit, scope=scope)
+            ctx = self.memory.build_context(
+                prompt, limit=memory_limit, scope=scope,
+                recency_weight=getattr(self.config, "recency_weight", 0.0),
+            )
             if ctx:
                 final_system = (final_system + "\n\n" + ctx).strip()
         return final_system or None

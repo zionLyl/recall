@@ -30,6 +30,7 @@ class Config:
     extraction_model: Optional[str] = None  # model for llm extraction (defaults to chat model)
     memory_inject_limit: int = 5
     dedupe_similarity: float = 0.0         # 0 = exact-only; e.g. 0.95 suppresses near-dupes on add (needs embeddings)
+    recency_weight: float = 0.0            # 0 = pure relevance; >0 blends recency/usage into retrieval ranking
     stream: bool = True                    # stream chat output token-by-token
     active_scope: str = "default"          # which memory scope is active
     extras: dict = field(default_factory=dict)
