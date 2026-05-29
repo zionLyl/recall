@@ -17,6 +17,7 @@ def _page() -> str:
     s = r.stats()
     mems = r.store.all_memories()
     recent = r.recent(limit=15)
+    sessions = r.recent_sessions(limit=8)
     scopes = r.store.list_scopes()
     budget = s.get("daily_budget", 0) or 0
     today = s.get("cost_today", 0) or 0
@@ -56,6 +57,28 @@ def _page() -> str:
         for b in s["by_model"]
     ) or "<tr><td colspan=4 class='dim'>No usage yet.</td></tr>"
 
+    def _session_html(sess: dict) -> str:
+        p = sess["parent"]
+        kids = "".join(
+            f"<div class='kid'><span class='kind'>{html.escape(c['kind'])}</span> "
+            f"{html.escape(c['model'])} · {c['input_tokens']}+{c['output_tokens']} tok · "
+            f"${c['cost_usd']:.4f}</div>"
+            for c in sess["children"]
+        )
+        total = (
+            f"<div class='kid dim'>turn total: {sess['total_tokens']} tok · "
+            f"${sess['total_cost']:.4f}</div>" if sess["children"] else ""
+        )
+        return (
+            f"<div class='turn'><div class='root'><span class='kind chat'>"
+            f"{html.escape(p['kind'])}</span> <b>{html.escape(p['model'])}</b> · "
+            f"{p['input_tokens']}+{p['output_tokens']} tok · ${p['cost_usd']:.4f} · "
+            f"{p['latency_ms']} ms</div>{kids}{total}</div>"
+        )
+
+    sessions_html = "".join(_session_html(x) for x in sessions) or \
+        "<div class='dim'>No turns yet.</div>"
+
     return f"""<!doctype html>
 <html><head><meta charset="utf-8"><title>recall dashboard</title>
 <meta http-equiv="refresh" content="5">
@@ -77,6 +100,11 @@ def _page() -> str:
   .bfill{{height:100%;border-radius:6px;transition:width .3s}}
   .chips{{margin:8px 0 0}} .chip{{display:inline-block;background:#eef;color:#446;
          border-radius:20px;padding:3px 12px;font-size:12px;margin:2px}}
+  .turn{{background:#fff;border:1px solid #eee;border-radius:10px;padding:10px 14px;margin:8px 0}}
+  .root{{font-size:14px}} .kid{{font-size:13px;color:#555;padding:3px 0 0 18px;
+         border-left:2px solid #eee;margin-left:6px}}
+  .kind{{display:inline-block;background:#eee;color:#666;border-radius:5px;
+        padding:1px 7px;font-size:11px}} .kind.chat{{background:#dbeafe;color:#1e40af}}
 </style></head>
 <body>
   <h1>🧠 recall</h1>
@@ -93,6 +121,8 @@ def _page() -> str:
   <table><tr><th>Model</th><th>Calls</th><th>Tokens</th><th>Cost</th></tr>{model_rows}</table>
   <h2>Memories</h2>
   <table><tr><th>ID</th><th>Memory</th><th>Tags</th></tr>{mem_rows}</table>
+  <h2>Recent turns</h2>
+  {sessions_html}
   <h2>Recent calls</h2>
   <table><tr><th>Model</th><th>In</th><th>Out</th><th>Cost</th><th>Latency</th></tr>{call_rows}</table>
 </body></html>"""

@@ -447,6 +447,36 @@ def recent(limit: int = typer.Option(20, "--limit", "-n")):
 
 
 @app.command()
+def trace(limit: int = typer.Option(10, "--limit", "-n", help="How many recent turns.")):
+    """Show recent turns as call trees: the chat call plus the memory
+    extraction / reconcile / graph calls it spawned, with per-turn totals."""
+    r = _r()
+    sessions = r.recent_sessions(limit=limit)
+    if not sessions:
+        console.print("[yellow]No calls traced yet.[/yellow]")
+        r.close()
+        return
+    from rich.tree import Tree
+
+    for s in sessions:
+        p = s["parent"]
+        root = Tree(
+            f"[cyan]{p['kind']}[/cyan] [bold]{p['model']}[/bold] · "
+            f"{p['input_tokens']}+{p['output_tokens']} tok · "
+            f"${p['cost_usd']:.4f} · {p['latency_ms']}ms"
+        )
+        for c in s["children"]:
+            root.add(
+                f"[magenta]{c['kind']}[/magenta] {c['model']} · "
+                f"{c['input_tokens']}+{c['output_tokens']} tok · ${c['cost_usd']:.4f}"
+            )
+        if s["children"]:
+            root.add(f"[dim]turn total: {s['total_tokens']} tok · ${s['total_cost']:.4f}[/dim]")
+        console.print(root)
+    r.close()
+
+
+@app.command()
 def models():
     """List supported providers."""
     table = Table(title=f"Supported providers ({len(REGISTRY)})")

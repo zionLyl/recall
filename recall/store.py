@@ -57,7 +57,11 @@ CREATE TABLE IF NOT EXISTS traces (
     output_tokens INTEGER NOT NULL DEFAULT 0,
     cost_usd    REAL NOT NULL DEFAULT 0.0,
     latency_ms  INTEGER NOT NULL DEFAULT 0,
-    created_at  REAL NOT NULL
+    created_at  REAL NOT NULL,
+    -- trace tree: group a turn's calls (chat + extraction/reconcile/graph)
+    session_id  TEXT,
+    parent_id   INTEGER,
+    kind        TEXT NOT NULL DEFAULT 'chat'
 );
 
 -- graph-lite: entity relationships as (subject, predicate, object) triples.
@@ -91,6 +95,9 @@ MIGRATIONS = [
     "ALTER TABLE memories ADD COLUMN valid_from REAL",
     "ALTER TABLE memories ADD COLUMN valid_to REAL",
     "ALTER TABLE memories ADD COLUMN active INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE traces ADD COLUMN session_id TEXT",
+    "ALTER TABLE traces ADD COLUMN parent_id INTEGER",
+    "ALTER TABLE traces ADD COLUMN kind TEXT NOT NULL DEFAULT 'chat'",
 ]
 
 
@@ -118,6 +125,9 @@ class Trace:
     output_tokens: int = 0
     cost_usd: float = 0.0
     latency_ms: int = 0
+    session_id: str = ""
+    parent_id: Optional[int] = None
+    kind: str = "chat"
 
 
 # Full-text search over memories (BM25). FTS5 ships with most SQLite builds; if
@@ -402,8 +412,8 @@ class Store:
     def add_trace(self, trace: Trace) -> int:
         cur = self.conn.execute(
             "INSERT INTO traces (model, provider, prompt, completion, input_tokens, "
-            "output_tokens, cost_usd, latency_ms, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "output_tokens, cost_usd, latency_ms, created_at, session_id, parent_id, kind) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 trace.model,
                 trace.provider,
@@ -414,6 +424,9 @@ class Store:
                 trace.cost_usd,
                 trace.latency_ms,
                 time.time(),
+                trace.session_id or None,
+                trace.parent_id,
+                trace.kind,
             ),
         )
         self.conn.commit()
@@ -467,11 +480,37 @@ class Store:
 
     def recent_traces(self, limit: int = 20) -> list[dict]:
         rows = self.conn.execute(
-            "SELECT model, provider, input_tokens, output_tokens, cost_usd, latency_ms, created_at "
-            "FROM traces ORDER BY created_at DESC LIMIT ?",
+            "SELECT model, provider, input_tokens, output_tokens, cost_usd, latency_ms, "
+            "created_at, kind FROM traces ORDER BY created_at DESC LIMIT ?",
             (limit,),
         ).fetchall()
         return [dict(r) for r in rows]
+
+    def recent_sessions(self, limit: int = 10) -> list[dict]:
+        """Group recent calls into turn trees: each top-level (chat) call plus
+        its child calls (memory extraction / reconcile / graph), with totals."""
+        parents = self.conn.execute(
+            "SELECT * FROM traces WHERE parent_id IS NULL ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        out: list[dict] = []
+        for p in parents:
+            kids = self.conn.execute(
+                "SELECT * FROM traces WHERE parent_id = ? ORDER BY created_at", (p["id"],)
+            ).fetchall()
+            children = [dict(k) for k in kids]
+            total_cost = p["cost_usd"] + sum(k["cost_usd"] for k in kids)
+            total_tokens = (
+                p["input_tokens"] + p["output_tokens"]
+                + sum(k["input_tokens"] + k["output_tokens"] for k in kids)
+            )
+            out.append({
+                "parent": dict(p),
+                "children": children,
+                "total_cost": total_cost,
+                "total_tokens": total_tokens,
+            })
+        return out
 
     # ---- graph-lite (relations) -----------------------------------------
     def relation_exists(self, subject: str, predicate: str, object_: str, scope: str) -> bool:

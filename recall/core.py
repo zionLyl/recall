@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import time
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
@@ -135,7 +136,8 @@ class Recall:
     ) -> ChatOutcome:
         """Record the trace, auto-capture memories, and build the outcome."""
         cost = estimate_cost(result.model, result.input_tokens, result.output_tokens)
-        self.store.add_trace(
+        session_id = uuid.uuid4().hex[:12]
+        parent_id = self.store.add_trace(
             Trace(
                 model=result.model,
                 provider=result.provider,
@@ -145,13 +147,17 @@ class Recall:
                 output_tokens=result.output_tokens,
                 cost_usd=cost,
                 latency_ms=latency_ms,
+                session_id=session_id,
+                kind="chat",
             )
         )
         captured = self._auto_capture(
-            prompt, auto_memory, scope, provider, model, api_key, base_url
+            prompt, auto_memory, scope, provider, model, api_key, base_url,
+            session_id, parent_id,
         )
         graph_added = self._auto_graph(
-            prompt, auto_memory, scope, provider, model, api_key, base_url
+            prompt, auto_memory, scope, provider, model, api_key, base_url,
+            session_id, parent_id,
         )
         return ChatOutcome(
             text=result.text,
@@ -166,9 +172,12 @@ class Recall:
             graph_added=graph_added,
         )
 
-    def _trace_aux(self, result: Optional[ChatResult], label: str) -> None:
-        """Record an auxiliary LLM call (extraction / reconcile) so its token
-        cost counts toward stats and the budget."""
+    def _trace_aux(
+        self, result: Optional[ChatResult], label: str, kind: str = "aux",
+        session_id: str = "", parent_id: Optional[int] = None,
+    ) -> None:
+        """Record an auxiliary LLM call (extraction / reconcile / graph) as a
+        child of the chat call, so its cost counts and the trace tree groups it."""
         if result is None:
             return
         self.store.add_trace(
@@ -182,11 +191,15 @@ class Recall:
                 cost_usd=estimate_cost(
                     result.model, result.input_tokens, result.output_tokens
                 ),
+                session_id=session_id,
+                parent_id=parent_id,
+                kind=kind,
             )
         )
 
     def _auto_capture(
-        self, prompt, auto_memory, scope, provider, model, api_key, base_url
+        self, prompt, auto_memory, scope, provider, model, api_key, base_url,
+        session_id: str = "", parent_id: Optional[int] = None,
     ) -> list[str]:
         auto = auto_memory if auto_memory is not None else self.config.auto_memory
         if not auto:
@@ -201,7 +214,8 @@ class Recall:
                 candidates, ex_result = extract_memories_llm(
                     prompt, provider, ex_model, api_key=api_key, base_url=base_url
                 )
-                self._trace_aux(ex_result, "[memory-extraction]")
+                self._trace_aux(ex_result, "[memory-extraction]", "extract",
+                                session_id, parent_id)
             except Exception:  # noqa: BLE001 — fall back to heuristic on any failure
                 candidates = extract_memories(prompt)
         else:
@@ -212,7 +226,8 @@ class Recall:
         for cand in candidates:
             if ops_mode:
                 applied = self._reconcile_capture(
-                    cand, scope, provider, model, api_key, base_url
+                    cand, scope, provider, model, api_key, base_url,
+                    session_id, parent_id,
                 )
                 if applied:
                     captured.append(applied)
@@ -223,7 +238,8 @@ class Recall:
         return captured
 
     def _reconcile_capture(
-        self, cand, scope, provider, model, api_key, base_url
+        self, cand, scope, provider, model, api_key, base_url,
+        session_id: str = "", parent_id: Optional[int] = None,
     ) -> Optional[str]:
         """Apply one mem0-style ADD/UPDATE/DELETE/NOOP decision for `cand`.
 
@@ -238,7 +254,8 @@ class Recall:
             decision, re_result = decide(
                 cand, related, provider, re_model, api_key=api_key, base_url=base_url
             )
-            self._trace_aux(re_result, "[memory-reconcile]")
+            self._trace_aux(re_result, "[memory-reconcile]", "reconcile",
+                            session_id, parent_id)
         except Exception:  # noqa: BLE001 — degrade to plain append
             decision = None
 
@@ -263,7 +280,8 @@ class Recall:
         return content if mid is not None else None
 
     def _auto_graph(
-        self, prompt, auto_memory, scope, provider, model, api_key, base_url
+        self, prompt, auto_memory, scope, provider, model, api_key, base_url,
+        session_id: str = "", parent_id: Optional[int] = None,
     ) -> int:
         """Mine (subject, predicate, object) relations from the prompt into the
         graph-lite store. Opt-in (config graph_extract); never breaks chat."""
@@ -277,7 +295,8 @@ class Recall:
             triples, gx_result = extract_triples(
                 prompt, provider, gx_model, api_key=api_key, base_url=base_url
             )
-            self._trace_aux(gx_result, "[graph-extract]")
+            self._trace_aux(gx_result, "[graph-extract]", "graph",
+                            session_id, parent_id)
         except Exception:  # noqa: BLE001
             return 0
         added = 0
@@ -410,6 +429,9 @@ class Recall:
 
     def recent(self, limit: int = 20):
         return self.store.recent_traces(limit=limit)
+
+    def recent_sessions(self, limit: int = 10):
+        return self.store.recent_sessions(limit=limit)
 
     # ---- export / import ------------------------------------------------
     def export_memories(self, path: Path, scope: Optional[str] = None) -> int:
