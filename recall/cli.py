@@ -161,6 +161,29 @@ def list_memories(
 
 
 @app.command()
+def show(memory_id: int = typer.Argument(..., help="Memory ID to inspect.")):
+    """Show a memory's full detail, including provenance (the chat it came from)."""
+    r = _r()
+    m = r.store.get_memory(memory_id)
+    if m is None:
+        console.print(f"[red]✗[/red] No memory #{memory_id}")
+        r.close()
+        raise typer.Exit(1)
+    console.print(f"[bold]#{m.id}[/bold] [dim]({m.scope})[/dim]")
+    console.print(m.content, markup=False)
+    console.print(f"[dim]source={m.source} · tags={', '.join(m.tags) or '—'} · "
+                  f"hits={m.hit_count} · active={bool(m.active)}[/dim]")
+    if m.source_trace:
+        tr = r.store.get_trace(m.source_trace)
+        if tr:
+            snippet = (tr.get("prompt") or "")[:200]
+            console.print(f"[dim]captured from call #{m.source_trace} "
+                          f"({tr.get('model','?')}):[/dim]")
+            console.print(f"  [dim]{snippet}[/dim]", markup=False)
+    r.close()
+
+
+@app.command()
 def forget(
     memory_id: int = typer.Argument(..., help="Memory ID to delete."),
     soft: bool = typer.Option(False, "--soft", help="Soft-forget (deactivate, keep history) instead of hard delete."),

@@ -234,7 +234,9 @@ class Recall:
                 if applied:
                     captured.append(applied)
             else:
-                mid = self.memory.remember(cand, scope=scope, source="auto")
+                mid = self.memory.remember(
+                    cand, scope=scope, source="auto", source_trace=parent_id
+                )
                 if mid is not None:
                     captured.append(cand)
         return captured
@@ -262,7 +264,7 @@ class Recall:
             decision = None
 
         if decision is None:
-            mid = self.memory.remember(cand, scope=scope, source="auto")
+            mid = self.memory.remember(cand, scope=scope, source="auto", source_trace=parent_id)
             return cand if mid is not None else None
 
         op = decision["op"]
@@ -278,7 +280,7 @@ class Recall:
             return None
         # ADD (or a malformed UPDATE/DELETE) → store the candidate.
         content = decision["content"] or cand
-        mid = self.memory.remember(content, scope=scope, source="auto")
+        mid = self.memory.remember(content, scope=scope, source="auto", source_trace=parent_id)
         return content if mid is not None else None
 
     def _auto_graph(

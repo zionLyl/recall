@@ -84,6 +84,7 @@ class MemoryEngine:
         source: str = "manual",
         dedupe: bool = True,
         similarity_threshold: float = 0.0,
+        source_trace: Optional[int] = None,
     ) -> Optional[int]:
         content = content.strip()
         if not content:
@@ -100,7 +101,8 @@ class MemoryEngine:
             if match is not None:
                 return None
         return self.store.add_memory(
-            content, tags=tags, embedding=embedding, scope=scope, source=source
+            content, tags=tags, embedding=embedding, scope=scope, source=source,
+            source_trace=source_trace,
         )
 
     def edit(

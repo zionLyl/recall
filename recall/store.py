@@ -44,7 +44,9 @@ CREATE TABLE IF NOT EXISTS memories (
     last_used  REAL,
     valid_from REAL,
     valid_to   REAL,
-    active     INTEGER NOT NULL DEFAULT 1
+    active     INTEGER NOT NULL DEFAULT 1,
+    -- provenance: the chat trace this memory was auto-captured from
+    source_trace INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS traces (
@@ -119,6 +121,7 @@ MIGRATIONS = [
     "ALTER TABLE traces ADD COLUMN session_id TEXT",
     "ALTER TABLE traces ADD COLUMN parent_id INTEGER",
     "ALTER TABLE traces ADD COLUMN kind TEXT NOT NULL DEFAULT 'chat'",
+    "ALTER TABLE memories ADD COLUMN source_trace INTEGER",
 ]
 
 
@@ -134,6 +137,7 @@ class Memory:
     hit_count: int = 0
     last_used: Optional[float] = None
     active: int = 1
+    source_trace: Optional[int] = None
 
 
 @dataclass
@@ -213,13 +217,14 @@ class Store:
         embedding: Optional[bytes] = None,
         scope: str = "default",
         source: str = "manual",
+        source_trace: Optional[int] = None,
     ) -> int:
         now = time.time()
         tag_str = ",".join(sorted(set(t.strip() for t in (tags or []) if t.strip())))
         cur = self.conn.execute(
             "INSERT INTO memories (content, tags, scope, source, embedding, created_at, "
-            "updated_at, valid_from, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)",
-            (content, tag_str, scope, source, embedding, now, now, now),
+            "updated_at, valid_from, active, source_trace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)",
+            (content, tag_str, scope, source, embedding, now, now, now, source_trace),
         )
         self.conn.commit()
         return int(cur.lastrowid)
@@ -237,6 +242,7 @@ class Store:
             hit_count=r["hit_count"] if "hit_count" in keys else 0,
             last_used=r["last_used"] if "last_used" in keys else None,
             active=r["active"] if "active" in keys else 1,
+            source_trace=r["source_trace"] if "source_trace" in keys else None,
         )
 
     def all_memories(
