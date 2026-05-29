@@ -449,14 +449,17 @@ def recent(limit: int = typer.Option(20, "--limit", "-n")):
         r.close()
         return
     table = Table(title="Recent calls")
+    table.add_column("ID", style="dim", justify="right")
     table.add_column("Model", style="cyan")
+    table.add_column("Kind", style="dim")
     table.add_column("In", justify="right")
     table.add_column("Out", justify="right")
     table.add_column("Cost", style="green", justify="right")
     table.add_column("Latency", justify="right")
     for row in rows:
         table.add_row(
-            row["model"], str(row["input_tokens"]), str(row["output_tokens"]),
+            str(row["id"]), row["model"], row.get("kind", "chat"),
+            str(row["input_tokens"]), str(row["output_tokens"]),
             f"${row['cost_usd']:.4f}", f"{row['latency_ms']} ms",
         )
     console.print(table)
@@ -514,6 +517,65 @@ def pricing(model: str = typer.Argument(None, help="Model to look up (omit to li
     for name, p in sorted(_load_pricing().items()):
         table.add_row(name, f"${p['input']}", f"${p['output']}")
     console.print(table)
+
+
+@app.command("eval")
+def eval_cmd(
+    trace_id: int = typer.Argument(..., help="Trace ID to evaluate (see `recall recent`)."),
+    contains: str = typer.Option(None, "--contains", help="Reply must contain this text."),
+    not_contains: str = typer.Option(None, "--not-contains", help="Reply must NOT contain this text."),
+    regex: str = typer.Option(None, "--regex", help="Reply must match this regex."),
+    max_tokens: int = typer.Option(None, "--max-tokens", help="Reply output tokens must be <= N."),
+    judge: str = typer.Option(None, "--judge", help="LLM-judge the reply against this criterion."),
+):
+    """Score a traced reply with local rules and/or an LLM judge; store results."""
+    r = _r()
+    if not any([contains, not_contains, regex, max_tokens, judge]):
+        console.print("[yellow]Pass at least one check: --contains/--not-contains/--regex/--max-tokens/--judge[/yellow]")
+        r.close()
+        raise typer.Exit(1)
+    try:
+        results = r.evaluate(
+            trace_id, contains=contains, not_contains=not_contains, regex=regex,
+            max_tokens=max_tokens, judge=judge,
+        )
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        r.close()
+        raise typer.Exit(1)
+    if not results:
+        console.print("[yellow]No eval ran (judge needs a configured provider/model).[/yellow]")
+    for res in results:
+        mark = "✓" if res["passed"] else "✗"
+        color = "green" if res["passed"] else "red"
+        console.print(f"[{color}]{mark}[/{color}] {res['name']} ({res['score']:.2f})")
+        console.print(f"   {res['detail']}", markup=False)
+    r.close()
+
+
+@app.command()
+def evals(trace_id: int = typer.Option(None, "--trace", help="Filter to one trace ID.")):
+    """List recent eval results."""
+    r = _r()
+    rows = r.evals_for(trace_id) if trace_id else r.store.recent_evals()
+    if not rows:
+        console.print("[yellow]No evals yet. Run: recall eval <trace_id> --judge \"...\"[/yellow]")
+        r.close()
+        return
+    table = Table(title="Evals")
+    table.add_column("Trace", style="dim", justify="right")
+    table.add_column("Kind", style="dim")
+    table.add_column("Name", style="cyan")
+    table.add_column("Score", justify="right")
+    table.add_column("Pass", justify="center")
+    table.add_column("Detail")
+    for row in rows:
+        table.add_row(
+            str(row["trace_id"]), row["kind"], row["name"], f"{row['score']:.2f}",
+            "✓" if row["passed"] else "✗", row["detail"],
+        )
+    console.print(table)
+    r.close()
 
 
 @app.command()

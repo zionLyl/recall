@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.5.0]
+
+Retrieval, cost accuracy, and quality — the next batch from the roadmap.
+
+### Added
+- **Graph-aware retrieval**: with `graph_weight > 0`, recall finds entities
+  named in the query, expands to their neighbors via the graph-lite relations,
+  and pulls in memories about those neighbors as an extra RRF signal — surfacing
+  connected memories the query never mentions. *(mem0/Zep-style.)*
+- **Maintained pricing map**: provider-prefixed ids resolve
+  (`openrouter/openai/gpt-4o` → `gpt-4o`); override without editing the package
+  via `RECALL_PRICING_FILE` (JSON file) layered under `RECALL_PRICING` (inline);
+  more current models added; `recall pricing [model]` to inspect. *(LiteLLM-style.)*
+- **Quality evals**: attach checks to a traced reply — local rules
+  (`--contains` / `--not-contains` / `--regex` / `--max-tokens`, free &
+  deterministic) and an opt-in `--judge "criterion"` LLM score (1–5 → 0–1).
+  `recall eval <trace_id> ...` and `recall evals` list results; `recall recent`
+  now shows trace IDs and kind. *(Langfuse/Phoenix-style, local.)*
+
 ## [0.4.0]
 
 Memory intelligence + deeper local observability — closing the biggest gaps vs

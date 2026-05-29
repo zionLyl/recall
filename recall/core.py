@@ -448,6 +448,56 @@ class Recall:
     def recent_sessions(self, limit: int = 10):
         return self.store.recent_sessions(limit=limit)
 
+    # ---- evals ----------------------------------------------------------
+    def evaluate(
+        self,
+        trace_id: int,
+        *,
+        contains: Optional[str] = None,
+        not_contains: Optional[str] = None,
+        regex: Optional[str] = None,
+        max_tokens: Optional[int] = None,
+        judge: Optional[str] = None,
+        provider: Optional[str] = None,
+        model: Optional[str] = None,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+    ) -> list[dict]:
+        """Run the requested checks against a traced call's reply and persist
+        them. Returns the result dicts. Raises ValueError if the trace is gone."""
+        from . import evals as ev
+
+        trace = self.store.get_trace(trace_id)
+        if trace is None:
+            raise ValueError(f"No trace #{trace_id}")
+        reply = trace.get("completion", "") or ""
+        results: list[dict] = []
+        if contains is not None:
+            results.append(ev.check_contains(reply, contains))
+        if not_contains is not None:
+            results.append(ev.check_not_contains(reply, not_contains))
+        if regex is not None:
+            results.append(ev.check_regex(reply, regex))
+        if max_tokens is not None:
+            results.append(ev.check_max_tokens(trace.get("output_tokens", 0) or 0, max_tokens))
+        if judge:
+            prov = provider or self.config.default_provider
+            mdl = self.config.extraction_model or model or self.config.default_model
+            if prov and mdl:
+                res, jr = ev.judge(reply, judge, prov, mdl, api_key=api_key, base_url=base_url)
+                self._trace_aux(jr, "[eval-judge]", "eval")
+                if res is not None:
+                    res = {**res, "detail": f"{judge}: {res['detail']}"}
+                    results.append(res)
+        for r in results:
+            self.store.add_eval(
+                trace_id, r["kind"], r["name"], r["score"], r["passed"], r["detail"]
+            )
+        return results
+
+    def evals_for(self, trace_id: int) -> list[dict]:
+        return self.store.evals_for(trace_id)
+
     # ---- export / import ------------------------------------------------
     def export_memories(self, path: Path, scope: Optional[str] = None) -> int:
         data = self.store.export_memories(scope=scope)

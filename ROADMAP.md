@@ -57,18 +57,16 @@ Langfuse/Phoenix (no spans, no evals).
 
 Most of the original gaps are now closed (see the table below). What remains:
 
-1. **No evals.** Trace trees show cost/latency per turn, but there's no
-   reply-quality scoring (LLM-as-judge / rules). (Langfuse, Phoenix.)
-2. **No OpenTelemetry export** — data is siloed in SQLite, can't pipe to
+1. **No OpenTelemetry export** — data is siloed in SQLite, can't pipe to
    Phoenix/Langfuse. (OpenLLMetry, Phoenix.)
-3. **Graph is a parallel store** — relations are queryable but not yet wired
-   into retrieval (no graph-expansion of queries). (mem0, Zep do graph-boosted recall.)
-4. **No maintained pricing map** — costs drift as models change. (LiteLLM `model_cost`.)
-5. **No plugin system** — adding a provider/extractor needs a core edit. (simonw/llm.)
+2. **No plugin system** — adding a provider/extractor needs a core edit. (simonw/llm.)
+3. **No full provenance** — auto-captured memories don't yet record the source
+   message id (relations do link a source_memory). (Graphiti episodes.)
 
 *Closed since the first analysis:* conflict resolution (ADD/UPDATE/DELETE/NOOP),
 memory lifecycle (decay/recency/soft-forget), relational memory (graph-lite),
-basic tracing (per-turn trace trees), prompt templates, budget hard-stop.
+**graph-aware retrieval**, per-turn trace trees, **quality evals (rules + LLM
+judge)**, prompt templates, budget hard-stop, **maintained pricing map**.
 
 ## "Steal these" — ranked by impact × low-effort, local-first only
 
@@ -81,34 +79,31 @@ basic tracing (per-turn trace trees), prompt templates, budget hard-stop.
 | 5 | Prompt templates / fragments in CLI | simonw/llm | Low | ✅ done (v0.4.0) |
 | 6 | Budget **hard-stop** (not just warn) | LiteLLM | Low | ✅ done (v0.3.0) |
 | 7 | Provenance per memory (source msg + timestamp) | Graphiti | Low | partial (source, created_at, valid_from/to; relations link source_memory) |
-| 8 | Maintained pricing map, LiteLLM `model_cost` style | LiteLLM | Low | planned |
+| 8 | Maintained pricing map, LiteLLM `model_cost` style | LiteLLM | Low | ✅ done (v0.5.0) |
 | 9 | Graph-lite: entity relations in SQLite | mem0/Zep/cognee | Med | ✅ done (v0.4.0) |
 | 10 | Local trace tree (turn → chat + aux calls) | Langfuse (spans) | Med | ✅ done (v0.4.0) |
-| 11 | Plugin hooks for providers/extractors | simonw/llm | Med | later |
-| 12 | In-process OpenAI `base_url` shim (drop-in logging) | Helicone (in-proc only) | Med | later |
-| 13 | Opt-in OpenTelemetry / OpenInference span export | OpenLLMetry, Phoenix | Med | later |
+| 11 | Graph-aware retrieval (query → neighbor memories) | mem0/Zep | Med | ✅ done (v0.5.0) |
+| 12 | Quality evals (rule checks + LLM judge) | Langfuse/Phoenix | Med | ✅ done (v0.5.0) |
+| 13 | Plugin hooks for providers/extractors | simonw/llm | Med | later |
+| 14 | In-process OpenAI `base_url` shim (drop-in logging) | Helicone (in-proc only) | Med | later |
+| 15 | Opt-in OpenTelemetry / OpenInference span export | OpenLLMetry, Phoenix | Med | later |
 
 **Do NOT adopt — breaks single-SQLite / no-server:** full graph-DB memory
 (Neo4j/FalkorDB), server-mode proxy with Postgres/ClickHouse, managed-cloud sync.
 
 ## Prioritized roadmap (next)
 
-1. **Maintained pricing map** — adopt a LiteLLM `model_cost`-style table so new
-   models price correctly; keep `RECALL_PRICING` override.
-2. **Graph-aware retrieval** — expand a query with related entities from the
-   graph-lite relations to pull in connected memories (currently graph is a
-   parallel store + query; wire it into recall).
-3. **Eval hooks** — lightweight local scoring of replies (LLM-as-judge / rules)
-   stored alongside traces, so quality is observable, not just cost.
-4. **Opt-in OpenTelemetry/OpenInference export** — coexist with Langfuse/Phoenix
+1. **Opt-in OpenTelemetry/OpenInference export** — coexist with Langfuse/Phoenix
    for users who outgrow the local dashboard, without abandoning local-first.
-5. **Plugin hooks** — let third parties add providers/extractors without core
+2. **Plugin hooks** — let third parties add providers/extractors without core
    changes (simonw/llm-style entry points).
-6. **Full provenance** — store the source message id on auto-captured memories
+3. **Full provenance** — store the source message id on auto-captured memories
    for end-to-end auditing.
+4. **Eval ergonomics** — saved eval suites + auto-eval after chat (opt-in), and
+   eval summaries in `recall stats` / the dashboard.
 
-Done recently (v0.3.0 → v0.4.0): streaming, LLM extraction, MCP server, PyPI
+Done recently (v0.3.0 → v0.5.0): streaming, LLM extraction, MCP server, PyPI
 publish, memory editing, similarity dedupe, hybrid FTS5+vector retrieval, budget
-hard-stop, **memory lifecycle (usage/soft-forget/recency)**, **conflict
-resolution (ADD/UPDATE/DELETE/NOOP)**, **graph-lite**, **local trace tree**,
-**prompt templates**.
+hard-stop, memory lifecycle (usage/soft-forget/recency), conflict resolution
+(ADD/UPDATE/DELETE/NOOP), graph-lite, local trace tree, prompt templates,
+**graph-aware retrieval**, **maintained pricing map**, **quality evals (rules + LLM judge)**.

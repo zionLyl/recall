@@ -277,8 +277,11 @@ recall import my-brain.json
 | `recall scope [name]` | Switch / list scopes |
 | `recall chat [provider model] "..." [-T tmpl -V k=v] [--no-stream]` | Chat with memory + tracing + auto-memory |
 | `recall stats` | Tokens, cost & budget overview |
-| `recall recent` | Recent model calls |
+| `recall recent` | Recent model calls (with trace IDs) |
 | `recall trace` | Recent turns as call trees |
+| `recall eval <id> [--contains/--regex/--judge ...]` | Score a traced reply (rules / LLM judge) |
+| `recall evals [--trace id]` | List eval results |
+| `recall pricing [model]` | Show resolved per-1M-token pricing |
 | `recall models` | Supported providers |
 | `recall prompt save/list/show/use/rm` | Manage prompt templates |
 | `recall export/import <file>` | Backup / restore memories |

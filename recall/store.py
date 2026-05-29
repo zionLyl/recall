@@ -86,6 +86,18 @@ CREATE TABLE IF NOT EXISTS prompts (
     updated_at REAL NOT NULL
 );
 
+-- quality evals attached to a traced call (rule checks or LLM judge).
+CREATE TABLE IF NOT EXISTS evals (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    trace_id   INTEGER,
+    kind       TEXT NOT NULL,
+    name       TEXT NOT NULL DEFAULT '',
+    score      REAL NOT NULL DEFAULT 0.0,
+    passed     INTEGER NOT NULL DEFAULT 0,
+    detail     TEXT NOT NULL DEFAULT '',
+    created_at REAL NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_traces_created ON traces(created_at);
 CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created_at);
 CREATE INDEX IF NOT EXISTS idx_memories_scope ON memories(scope);
@@ -489,11 +501,15 @@ class Store:
 
     def recent_traces(self, limit: int = 20) -> list[dict]:
         rows = self.conn.execute(
-            "SELECT model, provider, input_tokens, output_tokens, cost_usd, latency_ms, "
+            "SELECT id, model, provider, input_tokens, output_tokens, cost_usd, latency_ms, "
             "created_at, kind FROM traces ORDER BY created_at DESC LIMIT ?",
             (limit,),
         ).fetchall()
         return [dict(r) for r in rows]
+
+    def get_trace(self, trace_id: int) -> Optional[dict]:
+        row = self.conn.execute("SELECT * FROM traces WHERE id = ?", (trace_id,)).fetchone()
+        return dict(row) if row else None
 
     def recent_sessions(self, limit: int = 10) -> list[dict]:
         """Group recent calls into turn trees: each top-level (chat) call plus
@@ -611,6 +627,38 @@ class Store:
         cur = self.conn.execute("DELETE FROM prompts WHERE name = ?", (name.strip(),))
         self.conn.commit()
         return cur.rowcount > 0
+
+    # ---- evals ----------------------------------------------------------
+    def add_eval(
+        self, trace_id: Optional[int], kind: str, name: str,
+        score: float, passed: bool, detail: str = "",
+    ) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO evals (trace_id, kind, name, score, passed, detail, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (trace_id, kind, name, score, 1 if passed else 0, detail, time.time()),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def evals_for(self, trace_id: int) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT * FROM evals WHERE trace_id = ? ORDER BY created_at", (trace_id,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def recent_evals(self, limit: int = 20) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT * FROM evals ORDER BY created_at DESC LIMIT ?", (limit,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def eval_summary(self) -> dict:
+        row = self.conn.execute(
+            "SELECT COUNT(*) AS n, COALESCE(AVG(score),0) AS avg_score, "
+            "COALESCE(SUM(passed),0) AS passed FROM evals"
+        ).fetchone()
+        return {"count": row["n"], "avg_score": row["avg_score"], "passed": row["passed"]}
 
     def close(self) -> None:
         self.conn.close()
