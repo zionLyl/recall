@@ -173,6 +173,12 @@ class Recall:
             prompt, auto_memory, scope, provider, model, api_key, base_url,
             session_id, parent_id,
         )
+        auto_suite = getattr(self.config, "auto_eval_suite", None)
+        if auto_suite:
+            try:
+                self.run_suite(parent_id, auto_suite)
+            except Exception:  # noqa: BLE001 — eval must never break chat
+                pass
         return ChatOutcome(
             text=result.text,
             model=result.model,
@@ -454,6 +460,7 @@ class Recall:
         s["cost_today"] = self.store.cost_since(start_of_day)
         s["daily_budget"] = self.config.daily_budget_usd
         s["scopes"] = self.store.list_scopes()
+        s["evals"] = self.store.eval_summary()
         return s
 
     def recent(self, limit: int = 20):
@@ -511,6 +518,15 @@ class Recall:
 
     def evals_for(self, trace_id: int) -> list[dict]:
         return self.store.evals_for(trace_id)
+
+    def run_suite(self, trace_id: int, suite_name: str, **overrides) -> list[dict]:
+        """Run a saved eval suite against a trace. `overrides` win over the
+        suite's spec. Raises ValueError if the suite or trace is missing."""
+        spec = self.store.get_suite(suite_name)
+        if spec is None:
+            raise ValueError(f"No eval suite '{suite_name}'")
+        merged = {**spec, **{k: v for k, v in overrides.items() if v is not None}}
+        return self.evaluate(trace_id, **merged)
 
     # ---- export / import ------------------------------------------------
     def export_memories(self, path: Path, scope: Optional[str] = None) -> int:

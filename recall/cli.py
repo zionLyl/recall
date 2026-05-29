@@ -38,6 +38,8 @@ config_app = typer.Typer(help="View and edit configuration.")
 app.add_typer(config_app, name="config")
 prompt_app = typer.Typer(help="Save and reuse prompt templates / fragments.")
 app.add_typer(prompt_app, name="prompt")
+suite_app = typer.Typer(help="Save and reuse eval suites.")
+app.add_typer(suite_app, name="eval-suite")
 console = Console()
 
 
@@ -449,6 +451,12 @@ def stats():
     else:
         console.print(f"Cost today      : [green]${today:.4f}[/green]")
     console.print(f"Avg latency     : [cyan]{s['avg_latency_ms']:.0f} ms[/cyan]")
+    ev = s.get("evals", {})
+    if ev.get("count"):
+        console.print(
+            f"Evals           : [cyan]{ev['passed']}/{ev['count']} passed[/cyan] "
+            f"[dim](avg score {ev['avg_score']:.2f})[/dim]"
+        )
 
     if s["by_model"]:
         table = Table(title="\nBy model")
@@ -550,18 +558,25 @@ def eval_cmd(
     regex: str = typer.Option(None, "--regex", help="Reply must match this regex."),
     max_tokens: int = typer.Option(None, "--max-tokens", help="Reply output tokens must be <= N."),
     judge: str = typer.Option(None, "--judge", help="LLM-judge the reply against this criterion."),
+    suite: str = typer.Option(None, "--suite", help="Run a saved eval suite (flags override it)."),
 ):
     """Score a traced reply with local rules and/or an LLM judge; store results."""
     r = _r()
-    if not any([contains, not_contains, regex, max_tokens, judge]):
-        console.print("[yellow]Pass at least one check: --contains/--not-contains/--regex/--max-tokens/--judge[/yellow]")
+    if not any([contains, not_contains, regex, max_tokens, judge, suite]):
+        console.print("[yellow]Pass at least one check or --suite NAME[/yellow]")
         r.close()
         raise typer.Exit(1)
     try:
-        results = r.evaluate(
-            trace_id, contains=contains, not_contains=not_contains, regex=regex,
-            max_tokens=max_tokens, judge=judge,
-        )
+        if suite:
+            results = r.run_suite(
+                trace_id, suite, contains=contains, not_contains=not_contains,
+                regex=regex, max_tokens=max_tokens, judge=judge,
+            )
+        else:
+            results = r.evaluate(
+                trace_id, contains=contains, not_contains=not_contains, regex=regex,
+                max_tokens=max_tokens, judge=judge,
+            )
     except ValueError as e:
         console.print(f"[red]{e}[/red]")
         r.close()
@@ -598,6 +613,56 @@ def evals(trace_id: int = typer.Option(None, "--trace", help="Filter to one trac
             "✓" if row["passed"] else "✗", row["detail"],
         )
     console.print(table)
+    r.close()
+
+
+@suite_app.command("save")
+def suite_save(
+    name: str = typer.Argument(..., help="Suite name."),
+    contains: str = typer.Option(None, "--contains"),
+    not_contains: str = typer.Option(None, "--not-contains"),
+    regex: str = typer.Option(None, "--regex"),
+    max_tokens: int = typer.Option(None, "--max-tokens"),
+    judge: str = typer.Option(None, "--judge"),
+):
+    """Save a reusable eval suite (a bundle of checks)."""
+    spec = {k: v for k, v in {
+        "contains": contains, "not_contains": not_contains, "regex": regex,
+        "max_tokens": max_tokens, "judge": judge,
+    }.items() if v is not None}
+    if not spec:
+        console.print("[yellow]Add at least one check.[/yellow]")
+        raise typer.Exit(1)
+    r = _r()
+    r.store.save_suite(name, spec)
+    console.print(f"[green]✓[/green] Saved eval suite '{name}'")
+    r.close()
+
+
+@suite_app.command("list")
+def suite_list():
+    """List saved eval suites."""
+    r = _r()
+    suites = r.store.list_suites()
+    if not suites:
+        console.print("[yellow]No eval suites. Save one: recall eval-suite save <name> --judge \"...\"[/yellow]")
+        r.close()
+        return
+    table = Table(title="Eval suites")
+    table.add_column("Name", style="cyan")
+    table.add_column("Checks")
+    for name, spec in suites:
+        table.add_row(name, ", ".join(f"{k}={v}" for k, v in spec.items()))
+    console.print(table)
+    r.close()
+
+
+@suite_app.command("rm")
+def suite_rm(name: str = typer.Argument(..., help="Suite name.")):
+    """Delete an eval suite."""
+    r = _r()
+    ok = r.store.delete_suite(name)
+    console.print(f"[green]✓[/green] Deleted '{name}'" if ok else f"[red]No suite '{name}'[/red]")
     r.close()
 
 
@@ -650,7 +715,8 @@ def config_show():
     for k in ("default_provider", "default_model", "daily_budget_usd",
               "budget_enforce", "auto_memory", "extraction_mode", "extraction_model",
               "memory_ops", "graph_extract", "memory_inject_limit", "dedupe_similarity",
-              "recency_weight", "graph_weight", "stream", "otel_export", "active_scope"):
+              "recency_weight", "graph_weight", "stream", "otel_export",
+              "auto_eval_suite", "active_scope"):
         table.add_row(k, str(getattr(cfg, k)))
     console.print(table)
 

@@ -12,6 +12,7 @@ No data ever leaves the machine.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import sqlite3
@@ -86,6 +87,13 @@ CREATE TABLE IF NOT EXISTS prompts (
     content    TEXT NOT NULL,
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL
+);
+
+-- saved eval suites: a named bundle of checks (JSON spec).
+CREATE TABLE IF NOT EXISTS eval_suites (
+    name       TEXT PRIMARY KEY,
+    spec       TEXT NOT NULL,
+    created_at REAL NOT NULL
 );
 
 -- quality evals attached to a traced call (rule checks or LLM judge).
@@ -665,6 +673,43 @@ class Store:
             "COALESCE(SUM(passed),0) AS passed FROM evals"
         ).fetchone()
         return {"count": row["n"], "avg_score": row["avg_score"], "passed": row["passed"]}
+
+    # ---- eval suites ----------------------------------------------------
+    def save_suite(self, name: str, spec: dict) -> None:
+        self.conn.execute(
+            "INSERT INTO eval_suites (name, spec, created_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(name) DO UPDATE SET spec = excluded.spec",
+            (name.strip(), json.dumps(spec), time.time()),
+        )
+        self.conn.commit()
+
+    def get_suite(self, name: str) -> Optional[dict]:
+        row = self.conn.execute(
+            "SELECT spec FROM eval_suites WHERE name = ?", (name.strip(),)
+        ).fetchone()
+        if not row:
+            return None
+        try:
+            return json.loads(row["spec"])
+        except (ValueError, TypeError):
+            return None
+
+    def list_suites(self) -> list[tuple[str, dict]]:
+        rows = self.conn.execute(
+            "SELECT name, spec FROM eval_suites ORDER BY name"
+        ).fetchall()
+        out = []
+        for r in rows:
+            try:
+                out.append((r["name"], json.loads(r["spec"])))
+            except (ValueError, TypeError):
+                out.append((r["name"], {}))
+        return out
+
+    def delete_suite(self, name: str) -> bool:
+        cur = self.conn.execute("DELETE FROM eval_suites WHERE name = ?", (name.strip(),))
+        self.conn.commit()
+        return cur.rowcount > 0
 
     def close(self) -> None:
         self.conn.close()

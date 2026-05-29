@@ -36,6 +36,7 @@ class Config:
     graph_weight: float = 0.0              # 0 = off; >0 blends graph-connected memories into retrieval (needs relations)
     stream: bool = True                    # stream chat output token-by-token
     otel_export: bool = False              # opt-in: mirror calls as OpenTelemetry/OpenInference spans
+    auto_eval_suite: Optional[str] = None  # opt-in: run this saved eval suite on every chat reply
     active_scope: str = "default"          # which memory scope is active
     extras: dict = field(default_factory=dict)
 

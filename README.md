@@ -269,6 +269,7 @@ recall import my-brain.json
 | `recall add "..." [--tags a,b] [--scope s]` | Store a memory |
 | `recall search "..." [--all]` | Semantic (or keyword) search |
 | `recall list [--all]` | List memories (active scope) |
+| `recall show <id>` | Inspect a memory + its provenance (source chat) |
 | `recall edit <id> ["new content"] [--tags ...]` | Edit a memory in place |
 | `recall forget <id> [--soft]` | Delete (or soft-forget) a memory |
 | `recall prune [--older-than DAYS] [--unused] [--all]` | Soft-forget stale memories |
@@ -279,8 +280,9 @@ recall import my-brain.json
 | `recall stats` | Tokens, cost & budget overview |
 | `recall recent` | Recent model calls (with trace IDs) |
 | `recall trace` | Recent turns as call trees |
-| `recall eval <id> [--contains/--regex/--judge ...]` | Score a traced reply (rules / LLM judge) |
+| `recall eval <id> [--contains/--regex/--judge/--suite ...]` | Score a traced reply (rules / LLM judge) |
 | `recall evals [--trace id]` | List eval results |
+| `recall eval-suite save/list/rm` | Manage reusable eval suites |
 | `recall pricing [model]` | Show resolved per-1M-token pricing |
 | `recall models` | Supported providers |
 | `recall prompt save/list/show/use/rm` | Manage prompt templates |

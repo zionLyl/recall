@@ -55,18 +55,23 @@ Langfuse/Phoenix (no spans, no evals).
 
 ## Biggest gaps users will feel
 
-Most of the original gaps are now closed (see the table below). What remains:
+Every gap from the original competitive analysis is now closed (see the table).
+recall has reached feature parity-or-better with the field on its core promise —
+local-first memory + observability — while keeping the single-SQLite, no-server
+philosophy. Remaining work is depth/polish, not missing capabilities:
 
-1. **No OpenTelemetry export** — data is siloed in SQLite, can't pipe to
-   Phoenix/Langfuse. (OpenLLMetry, Phoenix.)
-2. **No plugin system** — adding a provider/extractor needs a core edit. (simonw/llm.)
-3. **No full provenance** — auto-captured memories don't yet record the source
-   message id (relations do link a source_memory). (Graphiti episodes.)
+- **Eval depth** — only rule checks + single-criterion LLM judge; no datasets or
+  regression suites across many traces (Langfuse/Phoenix go deeper).
+- **Graph depth** — relations are 1-hop; no multi-hop traversal or graph viz.
+- **Memory extraction quality** — heuristic + single-pass LLM; no benchmark
+  harness (mem0 reports LoCoMo/LongMemEval scores).
 
-*Closed since the first analysis:* conflict resolution (ADD/UPDATE/DELETE/NOOP),
-memory lifecycle (decay/recency/soft-forget), relational memory (graph-lite),
-**graph-aware retrieval**, per-turn trace trees, **quality evals (rules + LLM
-judge)**, prompt templates, budget hard-stop, **maintained pricing map**.
+*Closed across v0.3.0–v0.6.0:* conflict resolution (ADD/UPDATE/DELETE/NOOP),
+memory lifecycle, relational memory (graph-lite), graph-aware retrieval, hybrid
+FTS5+vector retrieval, similarity dedupe, per-turn trace trees, quality evals
+(rules + LLM judge) with saved suites & auto-eval, prompt templates, budget
+hard-stop, maintained pricing map, streaming, LLM extraction, MCP server,
+**provenance**, **plugin hooks**, **OpenTelemetry export**.
 
 ## "Steal these" — ranked by impact × low-effort, local-first only
 
@@ -84,26 +89,30 @@ judge)**, prompt templates, budget hard-stop, **maintained pricing map**.
 | 10 | Local trace tree (turn → chat + aux calls) | Langfuse (spans) | Med | ✅ done (v0.4.0) |
 | 11 | Graph-aware retrieval (query → neighbor memories) | mem0/Zep | Med | ✅ done (v0.5.0) |
 | 12 | Quality evals (rule checks + LLM judge) | Langfuse/Phoenix | Med | ✅ done (v0.5.0) |
-| 13 | Plugin hooks for providers/extractors | simonw/llm | Med | later |
-| 14 | In-process OpenAI `base_url` shim (drop-in logging) | Helicone (in-proc only) | Med | later |
-| 15 | Opt-in OpenTelemetry / OpenInference span export | OpenLLMetry, Phoenix | Med | later |
+| 13 | Plugin hooks for providers/extractors | simonw/llm | Med | ✅ done (v0.6.0) |
+| 14 | Full provenance (source trace on memories) | Graphiti | Low | ✅ done (v0.6.0) |
+| 15 | Opt-in OpenTelemetry / OpenInference span export | OpenLLMetry, Phoenix | Med | ✅ done (v0.6.0) |
+| 16 | Eval ergonomics (suites, auto-eval, summary) | Langfuse/Phoenix | Med | ✅ done (v0.6.0) |
+| — | In-process OpenAI `base_url` shim (drop-in logging) | Helicone (in-proc only) | Med | later |
 
 **Do NOT adopt — breaks single-SQLite / no-server:** full graph-DB memory
 (Neo4j/FalkorDB), server-mode proxy with Postgres/ClickHouse, managed-cloud sync.
 
 ## Prioritized roadmap (next)
 
-1. **Opt-in OpenTelemetry/OpenInference export** — coexist with Langfuse/Phoenix
-   for users who outgrow the local dashboard, without abandoning local-first.
-2. **Plugin hooks** — let third parties add providers/extractors without core
-   changes (simonw/llm-style entry points).
-3. **Full provenance** — store the source message id on auto-captured memories
-   for end-to-end auditing.
-4. **Eval ergonomics** — saved eval suites + auto-eval after chat (opt-in), and
-   eval summaries in `recall stats` / the dashboard.
+The competitive gaps are closed. Remaining work is depth/polish, lower priority:
 
-Done recently (v0.3.0 → v0.5.0): streaming, LLM extraction, MCP server, PyPI
+1. **Eval datasets / regression suites** — run a suite across many past traces
+   and track score trends, not just per-trace checks.
+2. **Multi-hop graph traversal + visualization** — relations are 1-hop today.
+3. **Extraction-quality benchmark harness** — measure recall/precision of memory
+   capture (mem0 publishes LoCoMo/LongMemEval numbers).
+4. **In-process OpenAI `base_url` shim** — drop-in logging for existing apps
+   without code changes (Helicone idea, kept in-process to stay server-free).
+
+Done across v0.3.0 → v0.6.0: streaming, LLM extraction, MCP server, PyPI
 publish, memory editing, similarity dedupe, hybrid FTS5+vector retrieval, budget
-hard-stop, memory lifecycle (usage/soft-forget/recency), conflict resolution
-(ADD/UPDATE/DELETE/NOOP), graph-lite, local trace tree, prompt templates,
-**graph-aware retrieval**, **maintained pricing map**, **quality evals (rules + LLM judge)**.
+hard-stop, memory lifecycle, conflict resolution (ADD/UPDATE/DELETE/NOOP),
+graph-lite, graph-aware retrieval, local trace tree, prompt templates, maintained
+pricing map, quality evals (rules + LLM judge, suites, auto-eval), **provenance**,
+**plugin hooks**, **OpenTelemetry export**.

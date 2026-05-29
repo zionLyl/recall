@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.6.0]
+
+The rest of the roadmap — extensibility, interop, auditing, and eval workflow.
+
+### Added
+- **Provenance**: auto-captured memories record the chat trace they came from
+  (`source_trace`); `recall show <id>` prints a memory's detail plus the source
+  call's model and prompt snippet for end-to-end auditing.
+- **Plugin hooks**: `recall.register_adapter(...)` for runtime custom providers,
+  and auto-discovery of adapters published under the `recall.adapters`
+  entry-point group. *(simonw/llm-style.)*
+- **OpenTelemetry export** (opt-in): `config otel_export true` mirrors calls as
+  OpenInference LLM spans to an OTLP backend (Phoenix/Langfuse) or the console —
+  no server dependency. `pip install 'recall-ai[otel]'`.
+- **Eval ergonomics**: saved eval suites (`recall eval-suite save/list/rm`,
+  `recall eval <id> --suite NAME`), an eval pass-rate/score summary in
+  `recall stats`, and opt-in **auto-eval after chat** (`config auto_eval_suite`).
+
 ## [0.5.0]
 
 Retrieval, cost accuracy, and quality — the next batch from the roadmap.
