@@ -435,7 +435,7 @@ def config_show():
     table.add_column("Key", style="cyan")
     table.add_column("Value")
     for k in ("default_provider", "default_model", "daily_budget_usd",
-              "auto_memory", "extraction_mode", "extraction_model",
+              "budget_enforce", "auto_memory", "extraction_mode", "extraction_model",
               "memory_inject_limit", "dedupe_similarity", "stream", "active_scope"):
         table.add_row(k, str(getattr(cfg, k)))
     console.print(table)

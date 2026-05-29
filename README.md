@@ -21,6 +21,7 @@ DeepSeek to Qwen — your memory and your bill follow you.
 ### What you get
 
 - 🧠 **Persistent memory** across sessions *and* across models
+- 🔎 **Hybrid retrieval** — semantic + BM25 keyword search, fused (no extra deps)
 - 🤖 **Auto-memory** — it captures your preferences from conversation (EN + 中文)
 - 🧬 **LLM extraction** (opt-in) — let a model pull memories for higher recall
 - 🌊 **Streaming** — replies type out token-by-token
@@ -243,6 +244,7 @@ recall list --all            # see every scope
 
 # Set a daily spend cap (warns at 80% and 100%)
 recall config set daily_budget_usd 1.0
+recall config set budget_enforce true   # hard-stop: refuse calls once the cap is hit
 
 # Defaults so you can just `recall chat "..."`
 recall config set default_provider deepseek
@@ -289,6 +291,9 @@ it — it's yours.
 - **No lock-in** — works across providers; swap models freely.
 
 ## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for how recall compares to mem0 / Letta / Zep /
+Langfuse / LiteLLM / simonw's `llm`, what it does better, and what's planned next.
 
 - [x] Auto-extract memories from conversations
 - [x] Budget alerts ("you've spent $X today")

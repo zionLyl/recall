@@ -28,6 +28,10 @@ from .pricing import estimate_cost
 from .store import Store, Trace
 
 
+class BudgetExceeded(RuntimeError):
+    """Raised when budget_enforce is on and today's spend hit the daily budget."""
+
+
 @dataclass
 class ChatOutcome:
     """Result of a chat call, enriched with recall metadata."""
@@ -198,6 +202,7 @@ class Recall:
         provider, model, scope, memory_limit = self._resolve(
             provider, model, scope, memory_limit
         )
+        self._enforce_budget()
         final_system = self._inject(prompt, system, use_memory, memory_limit, scope)
         adapter = get_adapter(provider, model, api_key=api_key, base_url=base_url)
 
@@ -233,6 +238,7 @@ class Recall:
         provider, model, scope, memory_limit = self._resolve(
             provider, model, scope, memory_limit
         )
+        self._enforce_budget()
         final_system = self._inject(prompt, system, use_memory, memory_limit, scope)
         adapter = get_adapter(provider, model, api_key=api_key, base_url=base_url)
 
@@ -253,17 +259,33 @@ class Recall:
             api_key, base_url,
         )
 
+    def _spent_today(self) -> float:
+        start_of_day = time.time() - (time.time() % 86400)
+        return self.store.cost_since(start_of_day)
+
     def _budget_warning(self) -> Optional[str]:
         budget = self.config.daily_budget_usd
         if not budget or budget <= 0:
             return None
-        start_of_day = time.time() - (time.time() % 86400)
-        spent = self.store.cost_since(start_of_day)
+        spent = self._spent_today()
         if spent >= budget:
             return f"Daily budget exceeded: ${spent:.4f} / ${budget:.2f}"
         if spent >= budget * 0.8:
             return f"Approaching daily budget: ${spent:.4f} / ${budget:.2f}"
         return None
+
+    def _enforce_budget(self) -> None:
+        """Hard-stop: refuse a new call if today's spend already hit the budget
+        and enforcement is on. Warnings alone don't raise."""
+        budget = self.config.daily_budget_usd
+        if not getattr(self.config, "budget_enforce", False) or not budget or budget <= 0:
+            return
+        spent = self._spent_today()
+        if spent >= budget:
+            raise BudgetExceeded(
+                f"Daily budget reached (${spent:.4f} / ${budget:.2f}); refusing call. "
+                f"Raise daily_budget_usd or turn off budget_enforce."
+            )
 
     # ---- observability --------------------------------------------------
     def stats(self) -> dict:

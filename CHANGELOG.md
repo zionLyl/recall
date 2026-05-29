@@ -26,6 +26,14 @@ Streaming, smarter memory, and the MCP bridge.
   earliest, and unions their tags. Optional on-add suppression via
   `config set dedupe_similarity 0.95` (both need embeddings; exact dedupe still
   works without them).
+- **Hybrid retrieval**: memory search now fuses semantic (embeddings) with
+  BM25 keyword ranking (SQLite FTS5) via Reciprocal Rank Fusion — exact terms,
+  names, and IDs the embeddings blur now surface, while semantically-close
+  memories still rank. FTS5 stays in sync via triggers and falls back to LIKE
+  where unavailable. No new dependencies. *(mem0 / Zep do the same.)*
+- **Budget hard-stop**: `config set budget_enforce true` makes recall *refuse*
+  a call once today's spend hits `daily_budget_usd` (raises `BudgetExceeded`),
+  instead of only warning. *(LiteLLM-style.)*
 
 ### Fixed
 - Install hints (`recall-ai[dashboard]`, `recall-ai[mcp]`) and model output are

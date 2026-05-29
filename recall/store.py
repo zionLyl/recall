@@ -13,6 +13,7 @@ No data ever leaves the machine.
 from __future__ import annotations
 
 import os
+import re
 import sqlite3
 import time
 from dataclasses import dataclass
@@ -89,6 +90,28 @@ class Trace:
     latency_ms: int = 0
 
 
+# Full-text search over memories (BM25). FTS5 ships with most SQLite builds; if
+# it's missing we silently fall back to LIKE search. An external-content table +
+# triggers keeps the index in sync with the memories table.
+FTS_SCHEMA = """
+CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
+    content, tags, content='memories', content_rowid='id'
+);
+CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
+    INSERT INTO memories_fts(rowid, content, tags) VALUES (new.id, new.content, new.tags);
+END;
+CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
+    INSERT INTO memories_fts(memories_fts, rowid, content, tags)
+        VALUES ('delete', old.id, old.content, old.tags);
+END;
+CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
+    INSERT INTO memories_fts(memories_fts, rowid, content, tags)
+        VALUES ('delete', old.id, old.content, old.tags);
+    INSERT INTO memories_fts(rowid, content, tags) VALUES (new.id, new.content, new.tags);
+END;
+"""
+
+
 class Store:
     def __init__(self, path: Optional[Path] = None):
         self.path = Path(path) if path else default_db_path()
@@ -96,6 +119,7 @@ class Store:
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
         self._migrate()
+        self.fts_enabled = self._init_fts()
         self.conn.commit()
 
     def _migrate(self) -> None:
@@ -104,6 +128,21 @@ class Store:
                 self.conn.execute(stmt)
             except sqlite3.OperationalError:
                 pass  # column already exists
+
+    def _init_fts(self) -> bool:
+        """Create the FTS5 index + triggers and sync them. Returns False (and
+        keeps using LIKE search) if this SQLite build lacks FTS5."""
+        try:
+            self.conn.executescript(FTS_SCHEMA)
+            # Backfill / repair the index when it's out of sync with memories
+            # (e.g. an older DB created before FTS existed).
+            fts_n = self.conn.execute("SELECT COUNT(*) AS c FROM memories_fts").fetchone()["c"]
+            mem_n = self.conn.execute("SELECT COUNT(*) AS c FROM memories").fetchone()["c"]
+            if fts_n != mem_n:
+                self.conn.execute("INSERT INTO memories_fts(memories_fts) VALUES ('rebuild')")
+            return True
+        except sqlite3.OperationalError:
+            return False
 
     # ---- memories -------------------------------------------------------
     def add_memory(
@@ -222,7 +261,36 @@ class Store:
         ).fetchall()
         return [(r["scope"], r["c"]) for r in rows]
 
+    @staticmethod
+    def _fts_match(query: str) -> str:
+        """Build a safe FTS5 MATCH expression: OR the query's word tokens, each
+        quoted, so user input can't trigger FTS syntax errors."""
+        tokens = re.findall(r"\w+", query, re.UNICODE)
+        if not tokens:
+            return ""
+        return " OR ".join(f'"{t}"' for t in tokens)
+
     def keyword_search(self, query: str, limit: int = 5, scope: Optional[str] = None) -> list[Memory]:
+        if self.fts_enabled:
+            match = self._fts_match(query)
+            if match:
+                sql = (
+                    "SELECT m.*, bm25(memories_fts) AS rank FROM memories_fts "
+                    "JOIN memories m ON m.id = memories_fts.rowid "
+                    "WHERE memories_fts MATCH ?"
+                )
+                params: list = [match]
+                if scope:
+                    sql += " AND m.scope = ?"
+                    params.append(scope)
+                sql += " ORDER BY rank LIMIT ?"  # bm25: lower rank = better
+                params.append(limit)
+                try:
+                    rows = self.conn.execute(sql, params).fetchall()
+                    return [self._row_to_memory(r, score=1.0) for r in rows]
+                except sqlite3.OperationalError:
+                    pass  # fall through to LIKE on any FTS hiccup
+
         like = f"%{query.strip()}%"
         if scope:
             rows = self.conn.execute(

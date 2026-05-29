@@ -24,6 +24,7 @@ class Config:
     default_provider: Optional[str] = None
     default_model: Optional[str] = None
     daily_budget_usd: float = 0.0          # 0 = no budget
+    budget_enforce: bool = False           # hard-stop (refuse calls) once the daily budget is hit
     auto_memory: bool = True               # auto-extract memories after chat
     extraction_mode: str = "heuristic"     # "heuristic" (free) or "llm" (opt-in, higher recall)
     extraction_model: Optional[str] = None  # model for llm extraction (defaults to chat model)

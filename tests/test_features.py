@@ -4,8 +4,6 @@ budget, export/import."""
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from recall.config import Config
 from recall.core import Recall
 from recall.extract import extract_memories

@@ -46,6 +46,17 @@ def _cosine(a: list[float], b: list[float]) -> float:
     return dot / (na * nb)
 
 
+def _rrf(rankings: list[list[int]], k: int = 60) -> dict[int, float]:
+    """Reciprocal Rank Fusion: combine several ranked id-lists into one score
+    map. An item's score is the sum of 1/(k + rank) across the lists it appears
+    in (rank is 0-based), so items ranked highly by multiple signals rise."""
+    scores: dict[int, float] = {}
+    for ranking in rankings:
+        for rank, item_id in enumerate(ranking):
+            scores[item_id] = scores.get(item_id, 0.0) + 1.0 / (k + rank)
+    return scores
+
+
 class MemoryEngine:
     def __init__(self, store: Store):
         self.store = store
@@ -169,8 +180,10 @@ class MemoryEngine:
     def recall(self, query: str, limit: int = 5, scope: Optional[str] = None) -> list[Memory]:
         model = _get_model()
         if model is None:
+            # No embeddings: keyword/BM25 search is all we have.
             return self.store.keyword_search(query, limit=limit, scope=scope)
 
+        # Semantic ranking over all embedded memories.
         qvec = model.encode([query])[0].tolist()
         scored: list[Memory] = []
         for mid, content, tags, blob, created, sc, src in self.store.all_memories_with_embeddings(scope=scope):
@@ -181,9 +194,34 @@ class MemoryEngine:
                 Memory(id=mid, content=content, tags=tags, created_at=created, scope=sc, source=src, score=score)
             )
         scored.sort(key=lambda m: m.score, reverse=True)
-        top = [m for m in scored if m.score > 0.15][:limit]
-        # If embeddings missed everything, fall back to keyword.
-        return top or self.store.keyword_search(query, limit=limit, scope=scope)
+        semantic = [m for m in scored if m.score > 0.15]
+
+        # Keyword/BM25 ranking (catches exact terms, names, IDs the embeddings
+        # may blur). Pull a wider pool than `limit` so fusion has signal.
+        pool = max(limit * 4, 10)
+        keyword = self.store.keyword_search(query, limit=pool, scope=scope)
+
+        if not semantic and not keyword:
+            return []
+        if not keyword:
+            return semantic[:limit]
+        if not semantic:
+            return keyword[:limit]
+
+        # Hybrid: fuse the two rankings with Reciprocal Rank Fusion so a memory
+        # that ranks well by *either* signal surfaces, and one strong on *both*
+        # wins. This is what mem0 / Zep do (semantic + BM25), kept dependency-free.
+        by_id: dict[int, Memory] = {}
+        for m in semantic[:pool] + keyword:
+            by_id.setdefault(m.id, m)
+        fused = _rrf([[m.id for m in semantic[:pool]], [m.id for m in keyword]])
+        ranked_ids = sorted(fused, key=lambda i: fused[i], reverse=True)[:limit]
+        out: list[Memory] = []
+        for mid in ranked_ids:
+            m = by_id[mid]
+            m.score = round(fused[mid], 4)
+            out.append(m)
+        return out
 
     def build_context(self, query: str, limit: int = 5, scope: Optional[str] = None) -> str:
         """Return a context block to prepend to a prompt."""
