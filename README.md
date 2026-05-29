@@ -24,12 +24,16 @@ DeepSeek to Qwen — your memory and your bill follow you.
 - 🔎 **Hybrid retrieval** — semantic + BM25 keyword search, fused (no extra deps)
 - 🤖 **Auto-memory** — it captures your preferences from conversation (EN + 中文)
 - 🧬 **LLM extraction** (opt-in) — let a model pull memories for higher recall
+- ♻️ **Conflict resolution** (opt-in) — ADD/UPDATE/DELETE/NOOP so facts stay current, not piled up
+- ⏳ **Lifecycle** — usage tracking, soft-forget, prune, recency-weighted ranking
+- 🕸️ **Graph-lite** — entity relationships in SQLite (no graph DB)
 - 🌊 **Streaming** — replies type out token-by-token
-- 📊 **Full observability** — tokens, cost, and latency for every call
-- 💰 **Daily budget** with 80% / 100% warnings
+- 📊 **Observability** — tokens/cost/latency per call, plus per-turn **trace trees**
+- 💰 **Daily budget** — 80% / 100% warnings, optional hard-stop
 - 🗂️ **Scopes** — isolate memory per project (`work`, `home`, …)
 - 🔌 **22 providers** — cloud, Chinese clouds, fast-inference hosts, local
 - 🔗 **MCP server** — any agent (Claude Desktop/Code, Cursor) reads/writes your memory
+- 📝 **Prompt templates** — reusable prompts with `{var}` substitution
 - 📦 **Export / import** — your memory is portable JSON
 - 🖥️ **Local web dashboard** — memory + cost at a glance
 - 🏠 **100% local** — no accounts, no servers, no telemetry
@@ -266,13 +270,17 @@ recall import my-brain.json
 | `recall search "..." [--all]` | Semantic (or keyword) search |
 | `recall list [--all]` | List memories (active scope) |
 | `recall edit <id> ["new content"] [--tags ...]` | Edit a memory in place |
-| `recall forget <id>` | Delete a memory |
+| `recall forget <id> [--soft]` | Delete (or soft-forget) a memory |
+| `recall prune [--older-than DAYS] [--unused] [--all]` | Soft-forget stale memories |
 | `recall dedupe [--threshold 0.9] [--all] [--dry-run]` | Merge near-duplicate memories |
+| `recall graph [entity] [--add "s\|p\|o"]` | View / add entity relationships |
 | `recall scope [name]` | Switch / list scopes |
-| `recall chat [provider model] "..." [--no-stream]` | Chat with memory + tracing + auto-memory |
+| `recall chat [provider model] "..." [-T tmpl -V k=v] [--no-stream]` | Chat with memory + tracing + auto-memory |
 | `recall stats` | Tokens, cost & budget overview |
 | `recall recent` | Recent model calls |
+| `recall trace` | Recent turns as call trees |
 | `recall models` | Supported providers |
+| `recall prompt save/list/show/use/rm` | Manage prompt templates |
 | `recall export/import <file>` | Backup / restore memories |
 | `recall config show/set/path` | View & edit configuration |
 | `recall dashboard` | Launch local web UI |

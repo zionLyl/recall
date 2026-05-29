@@ -36,6 +36,8 @@ app = typer.Typer(
 )
 config_app = typer.Typer(help="View and edit configuration.")
 app.add_typer(config_app, name="config")
+prompt_app = typer.Typer(help="Save and reuse prompt templates / fragments.")
+app.add_typer(prompt_app, name="prompt")
 console = Console()
 
 
@@ -323,13 +325,15 @@ def scope(name: str = typer.Argument(None, help="Scope to switch to. Omit to lis
 # ---- chat ---------------------------------------------------------------
 @app.command()
 def chat(
-    arg1: str = typer.Argument(..., help="Provider, OR the prompt if defaults are set."),
+    arg1: str = typer.Argument(None, help="Provider, OR the prompt if defaults are set."),
     arg2: str = typer.Argument(None, help="Model (when provider given)."),
     arg3: str = typer.Argument(None, help="Prompt (when provider+model given)."),
     system: str = typer.Option(None, "--system", "-s"),
     no_memory: bool = typer.Option(False, "--no-memory", help="Skip memory injection."),
     no_auto: bool = typer.Option(False, "--no-auto", help="Skip auto-memory capture."),
     stream: bool = typer.Option(None, "--stream/--no-stream", help="Stream output token-by-token (default from config)."),
+    template: str = typer.Option(None, "--template", "-T", help="Use a saved prompt template as the prompt."),
+    var: list[str] = typer.Option(None, "--var", "-V", help="Template variable k=v (repeatable)."),
 ):
     """Chat with any model — memory injected, cost & tokens traced automatically.
 
@@ -338,8 +342,21 @@ def chat(
       recall chat "prompt"                  (uses configured defaults)
     """
     r = _r()
+    if template is not None:
+        # Template supplies the prompt; positionals (if any) are provider/model.
+        from .prompts import parse_vars
+        prompt = r.render_prompt(template, parse_vars(var))
+        if prompt is None:
+            console.print(f"[red]No template '{template}'[/red]")
+            r.close()
+            raise typer.Exit(1)
+        provider, model = (arg1, arg2) if arg2 is not None else (None, None)
+    elif arg1 is None:
+        console.print("[red]Provide a prompt (or --template NAME).[/red]")
+        r.close()
+        raise typer.Exit(1)
     # Flexible argument parsing.
-    if arg2 is None and arg3 is None:
+    elif arg2 is None and arg3 is None:
         provider, model, prompt = None, None, arg1
     elif arg3 is None:
         # ambiguous: treat as provider+prompt only if defaults missing model
@@ -543,6 +560,73 @@ def config_set(key: str = typer.Argument(...), value: str = typer.Argument(...))
 def config_path_cmd():
     """Print the config file path."""
     console.print(str(config_path()))
+
+
+# ---- prompt templates ---------------------------------------------------
+@prompt_app.command("save")
+def prompt_save(
+    name: str = typer.Argument(..., help="Template name."),
+    content: str = typer.Argument(..., help="Template text; use {var} placeholders."),
+):
+    """Save (or replace) a prompt template / fragment."""
+    r = _r()
+    r.save_prompt(name, content)
+    console.print(f"[green]✓[/green] Saved template '{name}'")
+    r.close()
+
+
+@prompt_app.command("list")
+def prompt_list():
+    """List saved templates."""
+    r = _r()
+    rows = r.store.list_prompts()
+    if not rows:
+        console.print("[yellow]No templates. Save one: recall prompt save <name> \"...\"[/yellow]")
+        r.close()
+        return
+    table = Table(title="Prompt templates")
+    table.add_column("Name", style="cyan")
+    table.add_column("Content")
+    for row in rows:
+        preview = row["content"] if len(row["content"]) <= 70 else row["content"][:67] + "..."
+        table.add_row(row["name"], preview)
+    console.print(table)
+    r.close()
+
+
+@prompt_app.command("show")
+def prompt_show(name: str = typer.Argument(..., help="Template name.")):
+    """Print a template's raw content."""
+    r = _r()
+    content = r.store.get_prompt(name)
+    console.print(content, markup=False) if content is not None else console.print(f"[red]No template '{name}'[/red]")
+    r.close()
+
+
+@prompt_app.command("rm")
+def prompt_rm(name: str = typer.Argument(..., help="Template name.")):
+    """Delete a template."""
+    r = _r()
+    ok = r.store.delete_prompt(name)
+    console.print(f"[green]✓[/green] Deleted '{name}'" if ok else f"[red]No template '{name}'[/red]")
+    r.close()
+
+
+@prompt_app.command("use")
+def prompt_use(
+    name: str = typer.Argument(..., help="Template name."),
+    var: list[str] = typer.Option(None, "--var", "-V", help="Variable k=v (repeatable)."),
+):
+    """Render a template with variables and print it."""
+    from .prompts import parse_vars
+    r = _r()
+    rendered = r.render_prompt(name, parse_vars(var))
+    if rendered is None:
+        console.print(f"[red]No template '{name}'[/red]")
+        r.close()
+        raise typer.Exit(1)
+    console.print(rendered, markup=False)
+    r.close()
 
 
 # ---- dashboard / version ------------------------------------------------

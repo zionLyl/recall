@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.4.0]
+
+Memory intelligence + deeper local observability — closing the biggest gaps vs
+mem0 / Letta / Zep / Langfuse, while staying single-file and server-free.
+
+### Added
+- **Memory lifecycle**: memories track `hit_count` / `last_used` and a
+  `valid_from` / `valid_to` / `active` window. Retrieval records hits and skips
+  inactive memories. Soft-forget via `recall forget --soft` and bulk
+  `recall prune --older-than DAYS --unused`. Opt-in recency/usage ranking
+  (`config recency_weight`) blends a lifecycle signal into retrieval via
+  weighted RRF. *(Zep/Letta-inspired.)*
+- **Conflict resolution (ADD/UPDATE/DELETE/NOOP)**: opt-in `memory_ops = "llm"`
+  reconciles each new fact against its most-related memories so contradictions
+  are updated/removed instead of piling up. New `reconcile.py`; cost traced;
+  degrades to a plain ADD on any failure. *(mem0's signature.)*
+- **Graph-lite**: a `relations` table stores `(subject, predicate, object)`
+  triples per scope — relational memory without a graph DB. Opt-in LLM mining
+  (`graph_extract`) from chats; `recall graph [entity]` to query, `--add` to add
+  manually. *(mem0/Zep/cognee-style, single-SQLite.)*
+- **Local trace tree**: traces gain `session_id` / `parent_id` / `kind`, so a
+  turn's chat + its extraction/reconcile/graph calls form a tree. `recall trace`
+  renders per-turn call trees with token/cost totals; the dashboard gains a
+  "Recent turns" section.
+- **Prompt templates / fragments**: `recall prompt save/list/show/use/rm` with
+  `{var}` substitution; `recall chat --template NAME --var k=v`. *(simonw/llm-style.)*
+
 ## [0.3.0]
 
 Streaming, smarter memory, and the MCP bridge.

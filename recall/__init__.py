@@ -6,5 +6,5 @@ Data never leaves your machine.
 from .core import BudgetExceeded, Recall
 from .config import Config
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __all__ = ["Recall", "Config", "BudgetExceeded", "__version__"]

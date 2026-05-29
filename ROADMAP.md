@@ -55,51 +55,60 @@ Langfuse/Phoenix (no spans, no evals).
 
 ## Biggest gaps users will feel
 
-1. **No conflict resolution.** recall appends; contradictory facts ("I live in
-   NYC" + "I live in Berlin") accumulate. mem0 (ADD/UPDATE/DELETE/NOOP) and Zep
-   (temporal invalidation) reconcile. *The most-felt gap.*
-2. **No memory lifecycle** — no decay, recency/usage scoring, or "this is now
-   wrong." (Zep, Letta.)
-3. **No graph / relational memory.** (mem0, Zep, cognee, memary.)
-4. **Observability has no tracing or evals.** (Langfuse, Phoenix.)
-5. **No prompt management** (versioning/templates). (Langfuse, Helicone, simonw/llm.)
-6. **Budget warns but doesn't enforce.** (LiteLLM hard-stops.)
-7. **No OpenTelemetry export** — data is siloed in SQLite. (OpenLLMetry, Phoenix.)
+Most of the original gaps are now closed (see the table below). What remains:
+
+1. **No evals.** Trace trees show cost/latency per turn, but there's no
+   reply-quality scoring (LLM-as-judge / rules). (Langfuse, Phoenix.)
+2. **No OpenTelemetry export** — data is siloed in SQLite, can't pipe to
+   Phoenix/Langfuse. (OpenLLMetry, Phoenix.)
+3. **Graph is a parallel store** — relations are queryable but not yet wired
+   into retrieval (no graph-expansion of queries). (mem0, Zep do graph-boosted recall.)
+4. **No maintained pricing map** — costs drift as models change. (LiteLLM `model_cost`.)
+5. **No plugin system** — adding a provider/extractor needs a core edit. (simonw/llm.)
+
+*Closed since the first analysis:* conflict resolution (ADD/UPDATE/DELETE/NOOP),
+memory lifecycle (decay/recency/soft-forget), relational memory (graph-lite),
+basic tracing (per-turn trace trees), prompt templates, budget hard-stop.
 
 ## "Steal these" — ranked by impact × low-effort, local-first only
 
 | # | Feature | Who does it | Effort | Status |
 |---|---------|-------------|--------|--------|
-| 1 | LLM **ADD/UPDATE/DELETE/NOOP** on memory add (conflict resolution) | mem0 | Med | planned |
+| 1 | LLM **ADD/UPDATE/DELETE/NOOP** on memory add (conflict resolution) | mem0 | Med | ✅ done (v0.4.0) |
 | 2 | Exact + near-dup dedupe before insert | mem0 | Low | ✅ done (v0.3.0) |
-| 3 | **Hybrid retrieval** = semantic + BM25 (SQLite FTS5) fused by RRF | mem0, Zep | Low–Med | ✅ done |
-| 4 | Recency/usage scoring + soft decay | Zep, Letta | Low | planned |
-| 5 | Prompt templates / fragments in CLI | simonw/llm | Low | planned |
-| 6 | Budget **hard-stop** (not just warn) | LiteLLM | Low | ✅ done |
-| 7 | Provenance per memory (source msg + timestamp) | Graphiti | Low | partial (source/created_at) |
+| 3 | **Hybrid retrieval** = semantic + BM25 (SQLite FTS5) fused by RRF | mem0, Zep | Low–Med | ✅ done (v0.3.0) |
+| 4 | Recency/usage scoring + soft decay | Zep, Letta | Low | ✅ done (v0.4.0) |
+| 5 | Prompt templates / fragments in CLI | simonw/llm | Low | ✅ done (v0.4.0) |
+| 6 | Budget **hard-stop** (not just warn) | LiteLLM | Low | ✅ done (v0.3.0) |
+| 7 | Provenance per memory (source msg + timestamp) | Graphiti | Low | partial (source, created_at, valid_from/to; relations link source_memory) |
 | 8 | Maintained pricing map, LiteLLM `model_cost` style | LiteLLM | Low | planned |
-| 9 | Plugin hooks for providers/extractors | simonw/llm | Med | later |
-| 10 | In-process OpenAI `base_url` shim (drop-in logging) | Helicone (in-proc only) | Med | later |
-| 11 | Opt-in OpenTelemetry / OpenInference span export | OpenLLMetry, Phoenix | Med | later |
-| 12 | Temporal fact invalidation (`valid_from/valid_to`) | Zep/Graphiti | Med | later |
+| 9 | Graph-lite: entity relations in SQLite | mem0/Zep/cognee | Med | ✅ done (v0.4.0) |
+| 10 | Local trace tree (turn → chat + aux calls) | Langfuse (spans) | Med | ✅ done (v0.4.0) |
+| 11 | Plugin hooks for providers/extractors | simonw/llm | Med | later |
+| 12 | In-process OpenAI `base_url` shim (drop-in logging) | Helicone (in-proc only) | Med | later |
+| 13 | Opt-in OpenTelemetry / OpenInference span export | OpenLLMetry, Phoenix | Med | later |
 
 **Do NOT adopt — breaks single-SQLite / no-server:** full graph-DB memory
 (Neo4j/FalkorDB), server-mode proxy with Postgres/ClickHouse, managed-cloud sync.
 
 ## Prioritized roadmap (next)
 
-1. **LLM merge/update (ADD/UPDATE/DELETE/NOOP)** — highest-impact gap closer.
-   Behind the existing opt-in LLM extractor: retrieve top-k related memories,
-   let the model decide the op per fact. *(mem0-style.)*
-2. **Provenance + lifecycle columns** — `source_msg`, `valid_from/valid_to`,
-   `last_used`, `hit_count`. Unlocks auditing, soft decay, and temporal
-   supersession *without* a graph.
-3. **Recency/usage-weighted ranking + soft forgetting** — builds on (2).
-4. **Maintained pricing map** — keep cost accurate as models change.
-5. **Prompt templates / fragments** — cheap day-to-day utility.
-6. **Opt-in OpenTelemetry export** — coexist with Langfuse/Phoenix for users who
-   outgrow the local dashboard, without abandoning local-first.
+1. **Maintained pricing map** — adopt a LiteLLM `model_cost`-style table so new
+   models price correctly; keep `RECALL_PRICING` override.
+2. **Graph-aware retrieval** — expand a query with related entities from the
+   graph-lite relations to pull in connected memories (currently graph is a
+   parallel store + query; wire it into recall).
+3. **Eval hooks** — lightweight local scoring of replies (LLM-as-judge / rules)
+   stored alongside traces, so quality is observable, not just cost.
+4. **Opt-in OpenTelemetry/OpenInference export** — coexist with Langfuse/Phoenix
+   for users who outgrow the local dashboard, without abandoning local-first.
+5. **Plugin hooks** — let third parties add providers/extractors without core
+   changes (simonw/llm-style entry points).
+6. **Full provenance** — store the source message id on auto-captured memories
+   for end-to-end auditing.
 
-Done recently: streaming, LLM extraction (opt-in), MCP server, PyPI publish,
-memory editing, similarity merge/dedupe, **hybrid FTS5+vector retrieval**,
-**budget hard-stop**.
+Done recently (v0.3.0 → v0.4.0): streaming, LLM extraction, MCP server, PyPI
+publish, memory editing, similarity dedupe, hybrid FTS5+vector retrieval, budget
+hard-stop, **memory lifecycle (usage/soft-forget/recency)**, **conflict
+resolution (ADD/UPDATE/DELETE/NOOP)**, **graph-lite**, **local trace tree**,
+**prompt templates**.

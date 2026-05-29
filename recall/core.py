@@ -316,6 +316,19 @@ class Recall:
             return self.store.relations_for(entity, scope=scope)
         return self.store.all_relations(scope=scope)
 
+    # ---- prompt templates ----------------------------------------------
+    def save_prompt(self, name: str, content: str) -> None:
+        self.store.save_prompt(name, content)
+
+    def render_prompt(self, name: str, variables: Optional[dict] = None) -> Optional[str]:
+        """Load template `name` and render its {var} placeholders. None if absent."""
+        from .prompts import render
+
+        content = self.store.get_prompt(name)
+        if content is None:
+            return None
+        return render(content, variables or {})
+
     def chat(
         self,
         provider: Optional[str] = None,

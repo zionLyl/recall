@@ -77,6 +77,15 @@ CREATE TABLE IF NOT EXISTS relations (
     created_at    REAL NOT NULL
 );
 
+-- reusable prompt templates / fragments with {var} placeholders.
+CREATE TABLE IF NOT EXISTS prompts (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT NOT NULL UNIQUE,
+    content    TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_traces_created ON traces(created_at);
 CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created_at);
 CREATE INDEX IF NOT EXISTS idx_memories_scope ON memories(scope);
@@ -573,6 +582,35 @@ class Store:
             params + params,
         ).fetchall()
         return [(r["name"], r["c"]) for r in rows]
+
+    # ---- prompt templates / fragments -----------------------------------
+    def save_prompt(self, name: str, content: str) -> None:
+        """Create or replace a named prompt template."""
+        now = time.time()
+        self.conn.execute(
+            "INSERT INTO prompts (name, content, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(name) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at",
+            (name.strip(), content, now, now),
+        )
+        self.conn.commit()
+
+    def get_prompt(self, name: str) -> Optional[str]:
+        row = self.conn.execute(
+            "SELECT content FROM prompts WHERE name = ?", (name.strip(),)
+        ).fetchone()
+        return row["content"] if row else None
+
+    def list_prompts(self) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT name, content, updated_at FROM prompts ORDER BY name"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def delete_prompt(self, name: str) -> bool:
+        cur = self.conn.execute("DELETE FROM prompts WHERE name = ?", (name.strip(),))
+        self.conn.commit()
+        return cur.rowcount > 0
 
     def close(self) -> None:
         self.conn.close()
