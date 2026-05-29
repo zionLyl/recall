@@ -168,6 +168,80 @@ def forget(memory_id: int = typer.Argument(..., help="Memory ID to delete.")):
 
 
 @app.command()
+def edit(
+    memory_id: int = typer.Argument(..., help="Memory ID to edit."),
+    content: str = typer.Argument(None, help="New content (omit to only change tags)."),
+    tags: str = typer.Option(None, "--tags", "-t", help="Replace tags (comma-separated)."),
+):
+    """Edit a memory's content and/or tags (re-embeds if content changed)."""
+    r = _r()
+    if content is None and tags is None:
+        console.print("[yellow]Nothing to change — pass new content and/or --tags.[/yellow]")
+        r.close()
+        raise typer.Exit(1)
+    if r.store.get_memory(memory_id) is None:
+        console.print(f"[red]✗[/red] No memory #{memory_id}")
+        r.close()
+        raise typer.Exit(1)
+    tag_list = [t for t in tags.split(",") if t.strip()] if tags is not None else None
+    ok = r.edit(memory_id, content=content, tags=tag_list)
+    console.print(f"[green]✓[/green] Updated #{memory_id}" if ok else "[red]✗[/red] No change")
+    r.close()
+
+
+@app.command()
+def dedupe(
+    threshold: float = typer.Option(0.9, "--threshold", "-th", help="Cosine similarity to merge (0–1)."),
+    all_scopes: bool = typer.Option(False, "--all", help="Dedupe across all scopes."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would merge without changing anything."),
+):
+    """Merge near-duplicate memories by similarity (keeps the earliest, unions tags)."""
+    r = _r()
+    if not r.memory.has_embeddings:
+        console.print(
+            "[yellow]Similarity dedupe needs embeddings.[/yellow] "
+            "Install: pip install 'recall-ai[embeddings]'", markup=False,
+        )
+        r.close()
+        raise typer.Exit(1)
+    scope = None if all_scopes else r.scope
+    if dry_run:
+        # Preview: run the same clustering but don't persist.
+        from .memory import _cosine, _unpack
+        rows = r.store.all_memories_with_embeddings(scope=scope)
+        items = [(mid, c, _unpack(b), sc) for mid, c, _t, b, _cr, sc, _s in rows if b]
+        items.sort(key=lambda x: x[0])
+        seen, groups = set(), []
+        for i, (mid, c, vec, sc) in enumerate(items):
+            if mid in seen:
+                continue
+            dupes = [(m2, c2) for m2, c2, v2, sc2 in items[i + 1:]
+                     if m2 not in seen and sc2 == sc and _cosine(vec, v2) >= threshold]
+            if dupes:
+                for m2, _ in dupes:
+                    seen.add(m2)
+                groups.append((mid, c, dupes))
+        if not groups:
+            console.print("[green]No near-duplicates found.[/green]")
+        else:
+            for kept, kept_c, dupes in groups:
+                console.print(f"[cyan]keep #{kept}[/cyan] {kept_c}", markup=False)
+                for m2, c2 in dupes:
+                    console.print(f"  [dim]merge #{m2}[/dim] {c2}", markup=False)
+            console.print(f"\n[yellow]Dry run — {sum(len(d) for _,_,d in groups)} "
+                          f"memories would be merged. Re-run without --dry-run.[/yellow]")
+        r.close()
+        return
+    merges = r.dedupe(scope=scope, threshold=threshold)
+    removed = sum(len(m["removed"]) for m in merges)
+    if not merges:
+        console.print("[green]No near-duplicates found.[/green]")
+    else:
+        console.print(f"[green]✓[/green] Merged {removed} duplicate(s) into {len(merges)} memory/-ies.")
+    r.close()
+
+
+@app.command()
 def scope(name: str = typer.Argument(None, help="Scope to switch to. Omit to list scopes.")):
     """Switch the active memory scope, or list scopes."""
     r = _r()
@@ -362,7 +436,7 @@ def config_show():
     table.add_column("Value")
     for k in ("default_provider", "default_model", "daily_budget_usd",
               "auto_memory", "extraction_mode", "extraction_model",
-              "memory_inject_limit", "stream", "active_scope"):
+              "memory_inject_limit", "dedupe_similarity", "stream", "active_scope"):
         table.add_row(k, str(getattr(cfg, k)))
     console.print(table)
 

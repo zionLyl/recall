@@ -62,8 +62,20 @@ class Recall:
         source: str = "manual",
     ) -> Optional[int]:
         return self.memory.remember(
-            content, tags=tags, scope=scope or self.scope, source=source
+            content, tags=tags, scope=scope or self.scope, source=source,
+            similarity_threshold=getattr(self.config, "dedupe_similarity", 0.0),
         )
+
+    def edit(
+        self,
+        memory_id: int,
+        content: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+    ) -> bool:
+        return self.memory.edit(memory_id, content=content, tags=tags)
+
+    def dedupe(self, scope: Optional[str] = None, threshold: float = 0.9) -> list[dict]:
+        return self.memory.dedupe(scope=scope, threshold=threshold)
 
     def recall_memories(self, query: str, limit: int = 5, scope: Optional[str] = None):
         return self.memory.recall(query, limit=limit, scope=scope or self.scope)

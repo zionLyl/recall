@@ -168,6 +168,47 @@ class Store:
         self.conn.commit()
         return cur.rowcount > 0
 
+    def get_memory(self, memory_id: int) -> Optional[Memory]:
+        row = self.conn.execute(
+            "SELECT * FROM memories WHERE id = ?", (memory_id,)
+        ).fetchone()
+        return self._row_to_memory(row) if row else None
+
+    def update_memory(
+        self,
+        memory_id: int,
+        content: Optional[str] = None,
+        tags: Optional[Iterable[str]] = None,
+        embedding: Optional[bytes] = None,
+        embedding_set: bool = False,
+    ) -> bool:
+        """Update a memory's content and/or tags in place.
+
+        Only the provided fields change. ``embedding_set=True`` writes the given
+        embedding (used when content changed and was re-encoded).
+        """
+        sets, params = [], []
+        if content is not None:
+            sets.append("content = ?")
+            params.append(content)
+        if tags is not None:
+            tag_str = ",".join(sorted(set(t.strip() for t in tags if t.strip())))
+            sets.append("tags = ?")
+            params.append(tag_str)
+        if embedding_set:
+            sets.append("embedding = ?")
+            params.append(embedding)
+        if not sets:
+            return False
+        sets.append("updated_at = ?")
+        params.append(time.time())
+        params.append(memory_id)
+        cur = self.conn.execute(
+            f"UPDATE memories SET {', '.join(sets)} WHERE id = ?", params
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
+
     def memory_exists(self, content: str, scope: str = "default") -> bool:
         row = self.conn.execute(
             "SELECT 1 FROM memories WHERE content = ? AND scope = ? LIMIT 1",

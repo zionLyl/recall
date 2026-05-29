@@ -19,6 +19,13 @@ Streaming, smarter memory, and the MCP bridge.
   (Claude Desktop, Claude Code, Cursor, …) as tools — `remember`,
   `recall_search`, `list_memories`, `forget`, `usage_stats`. Same local SQLite
   store, nothing leaves your machine. Install with `pip install 'recall-ai[mcp]'`.
+- **Memory editing**: `recall edit <id> "new content" [--tags ...]` updates a
+  memory in place and re-embeds it. Library: `Recall.edit(...)`.
+- **Similarity merge / dedupe**: `recall dedupe [--threshold 0.9] [--all]
+  [--dry-run]` clusters near-duplicate memories by cosine similarity, keeps the
+  earliest, and unions their tags. Optional on-add suppression via
+  `config set dedupe_similarity 0.95` (both need embeddings; exact dedupe still
+  works without them).
 
 ### Fixed
 - Install hints (`recall-ai[dashboard]`, `recall-ai[mcp]`) and model output are

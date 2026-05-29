@@ -54,6 +54,12 @@ class MemoryEngine:
     def has_embeddings(self) -> bool:
         return _get_model() is not None
 
+    def _embed(self, text: str) -> Optional[bytes]:
+        model = _get_model()
+        if model is None:
+            return None
+        return _pack(model.encode([text])[0].tolist())
+
     def remember(
         self,
         content: str,
@@ -61,20 +67,104 @@ class MemoryEngine:
         scope: str = "default",
         source: str = "manual",
         dedupe: bool = True,
+        similarity_threshold: float = 0.0,
     ) -> Optional[int]:
         content = content.strip()
         if not content:
             return None
         if dedupe and self.store.memory_exists(content, scope=scope):
             return None
-        embedding = None
-        model = _get_model()
-        if model is not None:
-            vec = model.encode([content])[0].tolist()
-            embedding = _pack(vec)
+        embedding = self._embed(content)
+        # Near-duplicate suppression: if embeddings are available and a
+        # threshold is set, skip content that's semantically almost identical to
+        # something already stored in this scope (e.g. "I like tea" vs "I really
+        # like tea"). Exact dedupe above still applies when embeddings are off.
+        if dedupe and embedding is not None and similarity_threshold > 0:
+            match = self._find_similar(embedding, scope, similarity_threshold)
+            if match is not None:
+                return None
         return self.store.add_memory(
             content, tags=tags, embedding=embedding, scope=scope, source=source
         )
+
+    def edit(
+        self,
+        memory_id: int,
+        content: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+    ) -> bool:
+        """Edit a memory's content and/or tags, re-embedding if content changed."""
+        embedding = None
+        embedding_set = False
+        if content is not None:
+            content = content.strip()
+            if not content:
+                return False
+            embedding = self._embed(content)
+            embedding_set = True
+        return self.store.update_memory(
+            memory_id, content=content, tags=tags,
+            embedding=embedding, embedding_set=embedding_set,
+        )
+
+    def _find_similar(
+        self, embedding: bytes, scope: str, threshold: float, exclude_id: Optional[int] = None
+    ) -> Optional[tuple[int, float]]:
+        """Return (id, score) of the most similar stored memory above threshold."""
+        qvec = _unpack(embedding)
+        best: Optional[tuple[int, float]] = None
+        for mid, _content, _tags, blob, _created, _sc, _src in (
+            self.store.all_memories_with_embeddings(scope=scope)
+        ):
+            if not blob or mid == exclude_id:
+                continue
+            score = _cosine(qvec, _unpack(blob))
+            if score >= threshold and (best is None or score > best[1]):
+                best = (mid, score)
+        return best
+
+    def dedupe(self, scope: Optional[str] = None, threshold: float = 0.9) -> list[dict]:
+        """Merge near-duplicate memories by cosine similarity.
+
+        Within each scope, greedily clusters memories whose embeddings are at or
+        above ``threshold``, keeps the earliest one as canonical, unions tags
+        onto it, and deletes the rest. Requires embeddings; memories without an
+        embedding are left untouched. Returns a list of merge records.
+        """
+        if not self.has_embeddings:
+            return []
+        rows = self.store.all_memories_with_embeddings(scope=scope)
+        # (id, content, tags, vec, created, scope)
+        items = [
+            (mid, content, tags, _unpack(blob), created, sc)
+            for mid, content, tags, blob, created, sc, _src in rows
+            if blob
+        ]
+        # Cluster per scope; keep the earliest created as canonical.
+        items.sort(key=lambda x: (x[5], x[4]))  # by scope, then created_at
+        merged_ids: set[int] = set()
+        merges: list[dict] = []
+        for i, (mid, content, tags, vec, _created, sc) in enumerate(items):
+            if mid in merged_ids:
+                continue
+            absorbed: list[int] = []
+            tag_union = set(tags)
+            for mid2, content2, tags2, vec2, _c2, sc2 in items[i + 1:]:
+                if mid2 in merged_ids or sc2 != sc:
+                    continue
+                if _cosine(vec, vec2) >= threshold:
+                    absorbed.append(mid2)
+                    tag_union.update(tags2)
+                    merged_ids.add(mid2)
+            if absorbed:
+                self.store.update_memory(mid, tags=sorted(tag_union))
+                for dup in absorbed:
+                    self.store.delete_memory(dup)
+                merges.append({
+                    "kept": mid, "kept_content": content,
+                    "removed": absorbed, "scope": sc,
+                })
+        return merges
 
     def recall(self, query: str, limit: int = 5, scope: Optional[str] = None) -> list[Memory]:
         model = _get_model()

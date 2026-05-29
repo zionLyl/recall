@@ -154,6 +154,23 @@ recall config set extraction_model gpt-4o-mini # optional; defaults to chat mode
 If the extraction call ever fails (no key, network, bad output) recall silently
 falls back to the heuristic extractor, so chat never breaks.
 
+## Curate your memory
+
+```bash
+recall edit 3 "I prefer concise answers with tables"   # rewrite a memory
+recall edit 3 --tags style,format                       # or just retag it
+
+# Merge near-duplicates that pile up from auto-capture (needs embeddings)
+recall dedupe --dry-run        # preview which memories would merge
+recall dedupe --threshold 0.9  # keep the earliest, union tags, drop the rest
+recall config set dedupe_similarity 0.95   # also suppress near-dupes on add
+```
+
+Editing re-embeds the memory so semantic search stays accurate. Dedupe groups
+memories whose embeddings are ≥ the threshold, keeps the earliest as canonical,
+and unions tags onto it — exact-duplicate skipping still works even without
+embeddings installed.
+
 ## MCP server — plug recall into any agent
 
 Expose your local memory to any MCP-aware client (Claude Desktop, Claude Code,
@@ -246,7 +263,9 @@ recall import my-brain.json
 | `recall add "..." [--tags a,b] [--scope s]` | Store a memory |
 | `recall search "..." [--all]` | Semantic (or keyword) search |
 | `recall list [--all]` | List memories (active scope) |
+| `recall edit <id> ["new content"] [--tags ...]` | Edit a memory in place |
 | `recall forget <id>` | Delete a memory |
+| `recall dedupe [--threshold 0.9] [--all] [--dry-run]` | Merge near-duplicate memories |
 | `recall scope [name]` | Switch / list scopes |
 | `recall chat [provider model] "..." [--no-stream]` | Chat with memory + tracing + auto-memory |
 | `recall stats` | Tokens, cost & budget overview |
@@ -280,7 +299,7 @@ it — it's yours.
 - [x] LLM-based memory extraction (opt-in, higher recall)
 - [x] MCP server so any agent can read/write recall memory
 - [x] PyPI release (`pip install recall-ai`) — automated via tag push
-- [ ] Memory editing & merge / dedupe by similarity
+- [x] Memory editing & merge / dedupe by similarity
 
 ## Contributing
 
