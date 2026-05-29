@@ -60,9 +60,25 @@ CREATE TABLE IF NOT EXISTS traces (
     created_at  REAL NOT NULL
 );
 
+-- graph-lite: entity relationships as (subject, predicate, object) triples.
+-- A flat relations table gives relational queries without a graph database,
+-- staying true to the single-SQLite philosophy.
+CREATE TABLE IF NOT EXISTS relations (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    subject       TEXT NOT NULL,
+    predicate     TEXT NOT NULL,
+    object        TEXT NOT NULL,
+    scope         TEXT NOT NULL DEFAULT 'default',
+    source_memory INTEGER,
+    created_at    REAL NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_traces_created ON traces(created_at);
 CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created_at);
 CREATE INDEX IF NOT EXISTS idx_memories_scope ON memories(scope);
+CREATE INDEX IF NOT EXISTS idx_relations_scope ON relations(scope);
+CREATE INDEX IF NOT EXISTS idx_relations_subject ON relations(subject);
+CREATE INDEX IF NOT EXISTS idx_relations_object ON relations(object);
 """
 
 # Lightweight migrations for older DBs created before a column existed.
@@ -424,7 +440,9 @@ class Store:
             "cost_usd": row["cost"],
             "avg_latency_ms": row["avg_latency"],
             "by_model": [dict(r) for r in by_model],
-            "memory_count": self.conn.execute("SELECT COUNT(*) AS c FROM memories").fetchone()["c"],
+            "memory_count": self.conn.execute(
+                "SELECT COUNT(*) AS c FROM memories WHERE active = 1"
+            ).fetchone()["c"],
         }
 
     def cost_since(self, since_ts: float) -> float:
@@ -454,6 +472,68 @@ class Store:
             (limit,),
         ).fetchall()
         return [dict(r) for r in rows]
+
+    # ---- graph-lite (relations) -----------------------------------------
+    def relation_exists(self, subject: str, predicate: str, object_: str, scope: str) -> bool:
+        row = self.conn.execute(
+            "SELECT 1 FROM relations WHERE subject = ? AND predicate = ? AND object = ? "
+            "AND scope = ? LIMIT 1",
+            (subject, predicate, object_, scope),
+        ).fetchone()
+        return row is not None
+
+    def add_relation(
+        self, subject: str, predicate: str, object_: str,
+        scope: str = "default", source_memory: Optional[int] = None,
+    ) -> Optional[int]:
+        subject, predicate, object_ = subject.strip(), predicate.strip(), object_.strip()
+        if not (subject and predicate and object_):
+            return None
+        if self.relation_exists(subject, predicate, object_, scope):
+            return None
+        cur = self.conn.execute(
+            "INSERT INTO relations (subject, predicate, object, scope, source_memory, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (subject, predicate, object_, scope, source_memory, time.time()),
+        )
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def all_relations(self, scope: Optional[str] = None) -> list[dict]:
+        if scope:
+            rows = self.conn.execute(
+                "SELECT * FROM relations WHERE scope = ? ORDER BY created_at DESC", (scope,)
+            ).fetchall()
+        else:
+            rows = self.conn.execute("SELECT * FROM relations ORDER BY created_at DESC").fetchall()
+        return [dict(r) for r in rows]
+
+    def relations_for(self, entity: str, scope: Optional[str] = None) -> list[dict]:
+        """All relations where `entity` is the subject or object (case-insensitive)."""
+        like = entity.strip().lower()
+        params: list = [like, like]
+        sql = (
+            "SELECT * FROM relations WHERE (LOWER(subject) = ? OR LOWER(object) = ?)"
+        )
+        if scope:
+            sql += " AND scope = ?"
+            params.append(scope)
+        sql += " ORDER BY created_at DESC"
+        return [dict(r) for r in self.conn.execute(sql, params).fetchall()]
+
+    def entities(self, scope: Optional[str] = None) -> list[tuple[str, int]]:
+        """Distinct entity names (subjects + objects) with how many relations
+        each touches, most-connected first."""
+        scope_clause = " WHERE scope = ?" if scope else ""
+        params = (scope,) if scope else ()
+        rows = self.conn.execute(
+            f"SELECT name, COUNT(*) AS c FROM ("
+            f"  SELECT subject AS name FROM relations{scope_clause} "
+            f"  UNION ALL SELECT object AS name FROM relations{scope_clause}"
+            f") GROUP BY name ORDER BY c DESC",
+            params + params,
+        ).fetchall()
+        return [(r["name"], r["c"]) for r in rows]
 
     def close(self) -> None:
         self.conn.close()

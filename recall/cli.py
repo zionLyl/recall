@@ -263,6 +263,41 @@ def dedupe(
 
 
 @app.command()
+def graph(
+    entity: str = typer.Argument(None, help="Entity to query (omit to list all relations)."),
+    add: str = typer.Option(None, "--add", help='Add a triple: "subject|predicate|object".'),
+):
+    """View or add entity relationships (graph-lite). Mined from chats when
+    `config set graph_extract true`."""
+    r = _r()
+    if add:
+        parts = [p.strip() for p in add.split("|")]
+        if len(parts) != 3:
+            console.print('[red]Use --add "subject|predicate|object"[/red]')
+            r.close()
+            raise typer.Exit(1)
+        rid = r.add_relation(*parts)
+        console.print(f"[green]✓[/green] Added relation #{rid}" if rid else "[yellow]Already known.[/yellow]")
+        r.close()
+        return
+    rels = r.graph(entity)
+    if not rels:
+        msg = f"No relations for '{entity}'." if entity else "No relations yet."
+        console.print(f"[yellow]{msg}[/yellow]")
+        r.close()
+        return
+    title = f"Relations · {entity}" if entity else f"Relations ({len(rels)}) · scope='{r.scope}'"
+    table = Table(title=title)
+    table.add_column("Subject", style="cyan")
+    table.add_column("Predicate", style="magenta")
+    table.add_column("Object", style="cyan")
+    for rel in rels:
+        table.add_row(rel["subject"], rel["predicate"], rel["object"])
+    console.print(table)
+    r.close()
+
+
+@app.command()
 def scope(name: str = typer.Argument(None, help="Scope to switch to. Omit to list scopes.")):
     """Switch the active memory scope, or list scopes."""
     r = _r()
@@ -343,7 +378,9 @@ def chat(
     meta = f"[dim]— {out.model} · {out.input_tokens}+{out.output_tokens} tok · ${out.cost_usd:.4f} · {out.latency_ms}ms[/dim]"
     console.print(meta)
     if out.auto_remembered:
-        console.print(f"[dim]🤖 remembered: {'; '.join(out.auto_remembered)}[/dim]")
+        console.print(f"[dim]🤖 remembered: {'; '.join(out.auto_remembered)}[/dim]", markup=False)
+    if out.graph_added:
+        console.print(f"[dim]🕸 +{out.graph_added} relation(s)[/dim]")
     if out.budget_warning:
         console.print(f"[bold yellow]⚠ {out.budget_warning}[/bold yellow]")
     r.close()
@@ -457,8 +494,8 @@ def config_show():
     table.add_column("Value")
     for k in ("default_provider", "default_model", "daily_budget_usd",
               "budget_enforce", "auto_memory", "extraction_mode", "extraction_model",
-              "memory_ops", "memory_inject_limit", "dedupe_similarity", "recency_weight",
-              "stream", "active_scope"):
+              "memory_ops", "graph_extract", "memory_inject_limit", "dedupe_similarity",
+              "recency_weight", "stream", "active_scope"):
         table.add_row(k, str(getattr(cfg, k)))
     console.print(table)
 

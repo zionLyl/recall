@@ -45,6 +45,7 @@ class ChatOutcome:
     latency_ms: int
     auto_remembered: list[str]      # memories captured from this turn
     budget_warning: Optional[str]   # set if daily budget exceeded
+    graph_added: int = 0            # relations mined this turn (graph_extract)
 
 
 class Recall:
@@ -149,6 +150,9 @@ class Recall:
         captured = self._auto_capture(
             prompt, auto_memory, scope, provider, model, api_key, base_url
         )
+        graph_added = self._auto_graph(
+            prompt, auto_memory, scope, provider, model, api_key, base_url
+        )
         return ChatOutcome(
             text=result.text,
             model=result.model,
@@ -159,6 +163,7 @@ class Recall:
             latency_ms=latency_ms,
             auto_remembered=captured,
             budget_warning=self._budget_warning(),
+            graph_added=graph_added,
         )
 
     def _trace_aux(self, result: Optional[ChatResult], label: str) -> None:
@@ -256,6 +261,41 @@ class Recall:
         content = decision["content"] or cand
         mid = self.memory.remember(content, scope=scope, source="auto")
         return content if mid is not None else None
+
+    def _auto_graph(
+        self, prompt, auto_memory, scope, provider, model, api_key, base_url
+    ) -> int:
+        """Mine (subject, predicate, object) relations from the prompt into the
+        graph-lite store. Opt-in (config graph_extract); never breaks chat."""
+        auto = auto_memory if auto_memory is not None else self.config.auto_memory
+        if not auto or not getattr(self.config, "graph_extract", False):
+            return 0
+        try:
+            from .graph_extract import extract_triples
+
+            gx_model = self.config.extraction_model or model
+            triples, gx_result = extract_triples(
+                prompt, provider, gx_model, api_key=api_key, base_url=base_url
+            )
+            self._trace_aux(gx_result, "[graph-extract]")
+        except Exception:  # noqa: BLE001
+            return 0
+        added = 0
+        for s, p, o in triples:
+            if self.store.add_relation(s, p, o, scope=scope) is not None:
+                added += 1
+        return added
+
+    # ---- graph-lite -----------------------------------------------------
+    def add_relation(self, subject, predicate, object_, scope: Optional[str] = None):
+        return self.store.add_relation(subject, predicate, object_, scope=scope or self.scope)
+
+    def graph(self, entity: Optional[str] = None, scope: Optional[str] = None) -> list[dict]:
+        """Relations for `entity` (subject or object), or all relations in scope."""
+        scope = scope or self.scope
+        if entity:
+            return self.store.relations_for(entity, scope=scope)
+        return self.store.all_relations(scope=scope)
 
     def chat(
         self,
