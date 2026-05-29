@@ -94,19 +94,43 @@ recall dashboard          # → http://127.0.0.1:8745
 A single local page: memory cards, cost-by-model, recent calls. No build step,
 no telemetry, no cloud.
 
-## Supported models
+## Supported models (22 providers)
 
-| Provider | `provider` arg | Example models |
-|---|---|---|
-| OpenAI | `openai` | `gpt-4o`, `gpt-4o-mini`, `gpt-4.1` |
-| Anthropic | `anthropic` | `claude-3-5-sonnet`, `claude-3-5-haiku` |
-| DeepSeek | `deepseek` | `deepseek-chat`, `deepseek-reasoner` |
-| Qwen (DashScope) | `qwen` | `qwen-plus`, `qwen-max` |
-| Any OpenAI-compatible | `openai-compatible` | set `--base-url` |
+Mix and match across clouds, Chinese providers, fast inference hosts, and local
+models — your memory and cost ledger follow you everywhere.
+
+| Provider | `provider` arg | Example models | API key env |
+|---|---|---|---|
+| OpenAI | `openai` | `gpt-4o`, `gpt-4o-mini`, `gpt-4.1` | `OPENAI_API_KEY` |
+| Anthropic | `anthropic` | `claude-3-5-sonnet`, `claude-3-5-haiku` | `ANTHROPIC_API_KEY` |
+| Google Gemini | `gemini` | `gemini-1.5-pro`, `gemini-2.0-flash` | `GEMINI_API_KEY` |
+| DeepSeek | `deepseek` | `deepseek-chat`, `deepseek-reasoner` | `DEEPSEEK_API_KEY` |
+| Qwen (DashScope) | `qwen` | `qwen-plus`, `qwen-max` | `DASHSCOPE_API_KEY` |
+| Moonshot (Kimi) | `moonshot` | `moonshot-v1-8k`, `moonshot-v1-32k` | `MOONSHOT_API_KEY` |
+| Zhipu (GLM) | `zhipu` | `glm-4`, `glm-4-flash` | `ZHIPU_API_KEY` |
+| MiniMax | `minimax` | `abab6.5s` | `MINIMAX_API_KEY` |
+| Baichuan | `baichuan` | `Baichuan4` | `BAICHUAN_API_KEY` |
+| 01.AI (Yi) | `yi` | `yi-large`, `yi-lightning` | `YI_API_KEY` |
+| StepFun | `stepfun` | `step-1` | `STEPFUN_API_KEY` |
+| Mistral | `mistral` | `mistral-large`, `mistral-small` | `MISTRAL_API_KEY` |
+| xAI (Grok) | `xai` | `grok-2`, `grok-beta` | `XAI_API_KEY` |
+| Groq | `groq` | `llama-3.3-70b-versatile` | `GROQ_API_KEY` |
+| Together | `together` | open models | `TOGETHER_API_KEY` |
+| Fireworks | `fireworks` | open models | `FIREWORKS_API_KEY` |
+| DeepInfra | `deepinfra` | open models | `DEEPINFRA_API_KEY` |
+| Perplexity | `perplexity` | `sonar`, `sonar-pro` | `PERPLEXITY_API_KEY` |
+| OpenRouter | `openrouter` | 400+ models, one key | `OPENROUTER_API_KEY` |
+| Ollama (local) | `ollama` | `llama3`, `qwen2.5` | — |
+| LM Studio (local) | `lmstudio` | any loaded model | — |
+| Any OpenAI-compatible | `openai-compatible` | set `--base-url` | `RECALL_API_KEY` |
 
 ```bash
-recall models   # list providers + default base URLs
+recall models   # list all providers + key env vars + base URLs
 ```
+
+> Most providers speak the OpenAI API, so they share one adapter — just point
+> at the right base URL (handled automatically). Gemini has its own native
+> adapter. Local models (Ollama / LM Studio) need no key and no cloud.
 
 ## CLI reference
 

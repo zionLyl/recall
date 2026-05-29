@@ -72,6 +72,28 @@ def test_pricing_known_and_prefix():
     assert estimate_cost("totally-unknown-model", 1000, 1000) == 0.0
 
 
+def test_provider_registry_and_base_urls():
+    from recall.adapters import BASE_URLS, KEY_ENV, REGISTRY, get_adapter
+
+    # Broad provider coverage (ECC-style).
+    assert len(REGISTRY) >= 20
+    for p in ("openai", "anthropic", "gemini", "deepseek", "qwen", "moonshot",
+              "zhipu", "mistral", "xai", "groq", "openrouter", "ollama"):
+        assert p in REGISTRY, f"missing provider {p}"
+
+    # OpenAI-compatible providers get a default base URL injected.
+    a = get_adapter("deepseek", "deepseek-chat", api_key="x")
+    assert a.base_url == BASE_URLS["deepseek"]
+
+    # Unknown provider raises clearly.
+    import pytest
+    with pytest.raises(ValueError):
+        get_adapter("nope", "model")
+
+    # Every provider has a key env mapping (except generic compatible default).
+    assert KEY_ENV["openai"] == "OPENAI_API_KEY"
+
+
 def test_build_context():
     s = _tmp_store()
     eng = MemoryEngine(s)

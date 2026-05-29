@@ -17,7 +17,7 @@ from rich.console import Console
 from rich.table import Table
 
 from . import __version__
-from .adapters import BASE_URLS, REGISTRY
+from .adapters import BASE_URLS, KEY_ENV, REGISTRY
 from .core import Recall
 
 app = typer.Typer(
@@ -180,15 +180,20 @@ def recent(limit: int = typer.Option(20, "--limit", "-n")):
 @app.command()
 def models():
     """List supported providers."""
-    table = Table(title="Supported providers")
+    table = Table(title=f"Supported providers ({len(REGISTRY)})")
     table.add_column("Provider", style="cyan")
+    table.add_column("API key env var", style="green")
     table.add_column("Default base URL", style="dim")
     for name in sorted(REGISTRY):
-        table.add_row(name, BASE_URLS.get(name, "(provider default)"))
+        table.add_row(
+            name,
+            KEY_ENV.get(name, "RECALL_API_KEY"),
+            BASE_URLS.get(name, "(provider default)"),
+        )
     console.print(table)
     console.print(
-        "\n[dim]Set the matching API key env var "
-        "(OPENAI_API_KEY / ANTHROPIC_API_KEY / RECALL_API_KEY).[/dim]"
+        "\n[dim]Set the matching env var, or RECALL_API_KEY as a fallback. "
+        "ollama / lmstudio run locally and usually need no key.[/dim]"
     )
 
 
