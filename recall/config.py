@@ -28,6 +28,7 @@ class Config:
     auto_memory: bool = True               # auto-extract memories after chat
     extraction_mode: str = "heuristic"     # "heuristic" (free) or "llm" (opt-in, higher recall)
     extraction_model: Optional[str] = None  # model for llm extraction (defaults to chat model)
+    memory_ops: str = "append"             # "append" or "llm" (opt-in ADD/UPDATE/DELETE/NOOP conflict resolution)
     memory_inject_limit: int = 5
     dedupe_similarity: float = 0.0         # 0 = exact-only; e.g. 0.95 suppresses near-dupes on add (needs embeddings)
     recency_weight: float = 0.0            # 0 = pure relevance; >0 blends recency/usage into retrieval ranking

@@ -184,13 +184,14 @@ class MemoryEngine:
 
     def recall(
         self, query: str, limit: int = 5, scope: Optional[str] = None,
-        recency_weight: float = 0.0,
+        recency_weight: float = 0.0, touch: bool = True,
     ) -> list[Memory]:
         model = _get_model()
         if model is None:
             # No embeddings: keyword/BM25 search is all we have.
             hits = self.store.keyword_search(query, limit=limit, scope=scope)
-            self.store.touch_memories([m.id for m in hits])
+            if touch:
+                self.store.touch_memories([m.id for m in hits])
             return hits
 
         # Semantic ranking over all embedded memories.
@@ -239,7 +240,8 @@ class MemoryEngine:
             m = by_id[mid]
             m.score = round(fused[mid], 4)
             out.append(m)
-        self.store.touch_memories([m.id for m in out])
+        if touch:
+            self.store.touch_memories([m.id for m in out])
         return out
 
     def build_context(

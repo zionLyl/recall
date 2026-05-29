@@ -161,6 +161,25 @@ class Recall:
             budget_warning=self._budget_warning(),
         )
 
+    def _trace_aux(self, result: Optional[ChatResult], label: str) -> None:
+        """Record an auxiliary LLM call (extraction / reconcile) so its token
+        cost counts toward stats and the budget."""
+        if result is None:
+            return
+        self.store.add_trace(
+            Trace(
+                model=result.model,
+                provider=result.provider,
+                prompt=label,
+                completion=result.text,
+                input_tokens=result.input_tokens,
+                output_tokens=result.output_tokens,
+                cost_usd=estimate_cost(
+                    result.model, result.input_tokens, result.output_tokens
+                ),
+            )
+        )
+
     def _auto_capture(
         self, prompt, auto_memory, scope, provider, model, api_key, base_url
     ) -> list[str]:
@@ -177,34 +196,66 @@ class Recall:
                 candidates, ex_result = extract_memories_llm(
                     prompt, provider, ex_model, api_key=api_key, base_url=base_url
                 )
-                # Record the extraction call's cost so the budget stays honest.
-                if ex_result is not None:
-                    self.store.add_trace(
-                        Trace(
-                            model=ex_result.model,
-                            provider=ex_result.provider,
-                            prompt="[memory-extraction]",
-                            completion=ex_result.text,
-                            input_tokens=ex_result.input_tokens,
-                            output_tokens=ex_result.output_tokens,
-                            cost_usd=estimate_cost(
-                                ex_result.model,
-                                ex_result.input_tokens,
-                                ex_result.output_tokens,
-                            ),
-                        )
-                    )
+                self._trace_aux(ex_result, "[memory-extraction]")
             except Exception:  # noqa: BLE001 — fall back to heuristic on any failure
                 candidates = extract_memories(prompt)
         else:
             candidates = extract_memories(prompt)
 
+        ops_mode = getattr(self.config, "memory_ops", "append") == "llm"
         captured: list[str] = []
         for cand in candidates:
-            mid = self.memory.remember(cand, scope=scope, source="auto")
-            if mid is not None:
-                captured.append(cand)
+            if ops_mode:
+                applied = self._reconcile_capture(
+                    cand, scope, provider, model, api_key, base_url
+                )
+                if applied:
+                    captured.append(applied)
+            else:
+                mid = self.memory.remember(cand, scope=scope, source="auto")
+                if mid is not None:
+                    captured.append(cand)
         return captured
+
+    def _reconcile_capture(
+        self, cand, scope, provider, model, api_key, base_url
+    ) -> Optional[str]:
+        """Apply one mem0-style ADD/UPDATE/DELETE/NOOP decision for `cand`.
+
+        Returns a human-readable summary of what changed, or None for NOOP.
+        Falls back to a plain ADD on any failure.
+        """
+        try:
+            from .reconcile import decide
+
+            related = self.memory.recall(cand, limit=5, scope=scope, touch=False)
+            re_model = self.config.extraction_model or model
+            decision, re_result = decide(
+                cand, related, provider, re_model, api_key=api_key, base_url=base_url
+            )
+            self._trace_aux(re_result, "[memory-reconcile]")
+        except Exception:  # noqa: BLE001 — degrade to plain append
+            decision = None
+
+        if decision is None:
+            mid = self.memory.remember(cand, scope=scope, source="auto")
+            return cand if mid is not None else None
+
+        op = decision["op"]
+        if op == "NOOP":
+            return None
+        if op == "UPDATE" and decision["id"] and decision["content"]:
+            if self.memory.edit(decision["id"], content=decision["content"]):
+                return f"updated #{decision['id']}: {decision['content']}"
+            return None
+        if op == "DELETE" and decision["id"]:
+            if self.store.soft_delete(decision["id"]):
+                return f"forgot #{decision['id']} (contradicted)"
+            return None
+        # ADD (or a malformed UPDATE/DELETE) → store the candidate.
+        content = decision["content"] or cand
+        mid = self.memory.remember(content, scope=scope, source="auto")
+        return content if mid is not None else None
 
     def chat(
         self,
