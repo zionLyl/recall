@@ -494,6 +494,29 @@ def trace(limit: int = typer.Option(10, "--limit", "-n", help="How many recent t
 
 
 @app.command()
+def pricing(model: str = typer.Argument(None, help="Model to look up (omit to list the table).")):
+    """Show per-1M-token pricing. Override with RECALL_PRICING_FILE (a JSON file)
+    or RECALL_PRICING (inline JSON) — no code edits needed."""
+    from .pricing import _load_pricing, price_of
+
+    if model:
+        entry = price_of(model)
+        if entry is None:
+            console.print(f"[yellow]No price for '{model}' — it traces at $0. "
+                          f"Add it via RECALL_PRICING_FILE.[/yellow]", markup=False)
+        else:
+            console.print(f"[cyan]{model}[/cyan]: ${entry['input']}/1M in · ${entry['output']}/1M out", markup=False)
+        return
+    table = Table(title="Pricing (USD per 1M tokens)")
+    table.add_column("Model", style="cyan")
+    table.add_column("Input", justify="right")
+    table.add_column("Output", justify="right")
+    for name, p in sorted(_load_pricing().items()):
+        table.add_row(name, f"${p['input']}", f"${p['output']}")
+    console.print(table)
+
+
+@app.command()
 def models():
     """List supported providers."""
     table = Table(title=f"Supported providers ({len(REGISTRY)})")

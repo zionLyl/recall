@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+from typing import Optional
 
 # USD per 1,000,000 tokens.
 DEFAULT_PRICING: dict[str, dict[str, float]] = {
@@ -59,6 +60,21 @@ DEFAULT_PRICING: dict[str, dict[str, float]] = {
     # Perplexity
     "sonar": {"input": 1.0, "output": 1.0},
     "sonar-pro": {"input": 3.0, "output": 15.0},
+    # Anthropic (newer, approximate)
+    "claude-3-7-sonnet": {"input": 3.0, "output": 15.0},
+    "claude-sonnet-4": {"input": 3.0, "output": 15.0},
+    "claude-haiku-4": {"input": 1.0, "output": 5.0},
+    # OpenAI (newer, approximate)
+    "gpt-4.1-nano": {"input": 0.1, "output": 0.4},
+    "o3-mini": {"input": 1.1, "output": 4.4},
+    "o4-mini": {"input": 1.1, "output": 4.4},
+    # Google (approximate)
+    "gemini-2.5-pro": {"input": 1.25, "output": 10.0},
+    "gemini-2.5-flash": {"input": 0.3, "output": 2.5},
+    # DeepSeek v3 family (approximate)
+    "deepseek-v3": {"input": 0.27, "output": 1.1},
+    # Groq / open (approximate)
+    "llama-3.1-70b-versatile": {"input": 0.59, "output": 0.79},
     # Local models (free)
     "llama3": {"input": 0.0, "output": 0.0},
     "qwen2.5": {"input": 0.0, "output": 0.0},
@@ -66,7 +82,18 @@ DEFAULT_PRICING: dict[str, dict[str, float]] = {
 
 
 def _load_pricing() -> dict[str, dict[str, float]]:
+    """Resolve the pricing map. Layering (later wins): built-in defaults →
+    RECALL_PRICING_FILE (a JSON file path, LiteLLM model_cost-style) →
+    RECALL_PRICING (inline JSON). Both overrides let you keep prices current
+    without editing the package."""
     pricing = dict(DEFAULT_PRICING)
+    path = os.environ.get("RECALL_PRICING_FILE")
+    if path:
+        try:
+            with open(path) as f:
+                pricing.update(json.load(f))
+        except (ValueError, TypeError, OSError):
+            pass
     override = os.environ.get("RECALL_PRICING")
     if override:
         try:
@@ -76,17 +103,36 @@ def _load_pricing() -> dict[str, dict[str, float]]:
     return pricing
 
 
-def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
+def _candidates(model: str) -> list[str]:
+    """Names to try, so provider-prefixed ids resolve too. e.g.
+    'openrouter/openai/gpt-4o' → also try 'openai/gpt-4o' and 'gpt-4o'."""
+    parts = model.split("/")
+    out = [model]
+    for i in range(1, len(parts)):
+        out.append("/".join(parts[i:]))
+    return out
+
+
+def price_of(model: str) -> Optional[dict[str, float]]:
+    """Return {'input','output'} per-1M-token pricing for a model, or None.
+
+    Tries each name candidate exactly, then by longest matching prefix (so
+    'gpt-4o-2024-08-06' resolves to 'gpt-4o' and 'gpt-4o-mini-x' beats 'gpt-4o')."""
     pricing = _load_pricing()
-    # Match on prefix so "gpt-4o-2024-08-06" still resolves to "gpt-4o".
-    entry = pricing.get(model)
-    if entry is None:
-        # Match the longest prefix so "gpt-4o-mini-..." beats "gpt-4o".
+    for name in _candidates(model):
+        if name in pricing:
+            return pricing[name]
         best_key = ""
         for key in pricing:
-            if model.startswith(key) and len(key) > len(best_key):
+            if name.startswith(key) and len(key) > len(best_key):
                 best_key = key
-        entry = pricing.get(best_key) if best_key else None
+        if best_key:
+            return pricing[best_key]
+    return None
+
+
+def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
+    entry = price_of(model)
     if entry is None:
         return 0.0
     return (input_tokens / 1_000_000) * entry["input"] + (
