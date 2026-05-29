@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.2.0] - Unreleased
+
+Major feature round.
+
+### Added
+- **Auto-memory**: after each chat, recall heuristically captures durable
+  first-person facts/preferences (English + Chinese), tagged as `auto`.
+- **Memory scopes**: isolate memories per project/context
+  (`recall scope work`, `--scope`, `--all`). Active scope stored in config.
+- **Config system** (`~/.recall/config.json`): default provider/model, daily
+  budget, auto-memory toggle, inject limit, active scope.
+  CLI: `recall config show|set|path`.
+- **Daily budget + warnings**: set `daily_budget_usd`; chat and `stats` warn at
+  80% and 100% of the day's spend.
+- **Guided setup**: `recall init` (pick defaults, detect keys) and
+  `recall doctor` (which providers are ready).
+- **Export / import**: `recall export mem.json` / `recall import mem.json`
+  (JSON, dedupe-aware).
+- **Deduplication**: identical memories in the same scope are skipped.
+- **Flexible chat**: `recall chat "prompt"` uses configured defaults; the
+  three-arg form still works.
+- **Dashboard upgrades**: auto-refresh, daily-budget bar, scope chips.
+- Safe schema migrations for existing databases.
+
+### Changed
+- `Recall.chat()` now returns a richer `ChatOutcome` (cost, latency,
+  auto-remembered list, budget warning).
+
 ## [0.1.0] - Unreleased
 
 First MVP.

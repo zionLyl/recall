@@ -1,16 +1,25 @@
 """recall CLI.
 
-  recall add "I prefer concise answers"      # store a memory
+  recall init                                 # guided first-time setup
+  recall add "I prefer concise answers"       # store a memory
   recall search "preferences"                 # semantic/keyword search
-  recall list                                 # list all memories
+  recall list                                 # list memories (active scope)
   recall forget 3                             # delete a memory
   recall chat openai gpt-4o-mini "..."        # chat with memory + tracing
-  recall stats                                # tokens + cost overview
+  recall stats                                # tokens + cost + budget
   recall recent                               # recent model calls
   recall models                               # supported providers
+  recall scope work                           # switch active memory scope
+  recall config set daily_budget_usd 1.0      # configure defaults
+  recall export mem.json / recall import ...   # backup & restore
+  recall doctor                               # check which API keys are set
+  recall dashboard                            # local web UI
 """
 
 from __future__ import annotations
+
+import os
+from pathlib import Path
 
 import typer
 from rich.console import Console
@@ -18,12 +27,15 @@ from rich.table import Table
 
 from . import __version__
 from .adapters import BASE_URLS, KEY_ENV, REGISTRY
+from .config import Config, config_path
 from .core import Recall
 
 app = typer.Typer(
     add_completion=False,
     help="Your local AI brain: persistent memory + full observability for any model.",
 )
+config_app = typer.Typer(help="View and edit configuration.")
+app.add_typer(config_app, name="config")
 console = Console()
 
 
@@ -31,17 +43,69 @@ def _r() -> Recall:
     return Recall()
 
 
+# ---- setup --------------------------------------------------------------
+@app.command()
+def init():
+    """Guided first-time setup: pick a default model and detect API keys."""
+    cfg = Config.load()
+    console.print("[bold]🧠 recall setup[/bold]\n")
+
+    available = [p for p in sorted(REGISTRY) if os.environ.get(KEY_ENV.get(p, ""))]
+    if available:
+        console.print(f"Detected API keys for: [green]{', '.join(available)}[/green]")
+    else:
+        console.print("[yellow]No provider API keys detected in env.[/yellow] "
+                      "Set e.g. OPENAI_API_KEY, then re-run, or use local ollama.")
+
+    default = available[0] if available else "openai"
+    provider = typer.prompt("Default provider", default=cfg.default_provider or default)
+    model = typer.prompt("Default model", default=cfg.default_model or "gpt-4o-mini")
+    budget = typer.prompt("Daily budget USD (0 = none)", default=str(cfg.daily_budget_usd))
+
+    cfg.default_provider = provider
+    cfg.default_model = model
+    cfg.daily_budget_usd = float(budget)
+    cfg.save()
+    console.print(f"\n[green]✓[/green] Saved to {config_path()}")
+    console.print("Try: [cyan]recall add \"I prefer concise answers\"[/cyan] then "
+                  "[cyan]recall chat \"hi\"[/cyan]")
+
+
+@app.command()
+def doctor():
+    """Check which providers have API keys configured."""
+    table = Table(title="Provider readiness")
+    table.add_column("Provider", style="cyan")
+    table.add_column("Key env", style="dim")
+    table.add_column("Status")
+    for name in sorted(REGISTRY):
+        env = KEY_ENV.get(name, "RECALL_API_KEY")
+        if name in ("ollama", "lmstudio"):
+            status = "[blue]local (no key)[/blue]"
+        elif os.environ.get(env) or os.environ.get("RECALL_API_KEY"):
+            status = "[green]✓ ready[/green]"
+        else:
+            status = "[dim]— not set[/dim]"
+        table.add_row(name, env, status)
+    console.print(table)
+
+
+# ---- memory -------------------------------------------------------------
 @app.command()
 def add(
     content: str = typer.Argument(..., help="The memory to store."),
     tags: str = typer.Option("", "--tags", "-t", help="Comma-separated tags."),
+    scope: str = typer.Option(None, "--scope", help="Memory scope (defaults to active)."),
 ):
     """Store a persistent memory."""
     r = _r()
     tag_list = [t for t in tags.split(",") if t.strip()]
-    mid = r.remember(content, tags=tag_list)
-    mode = "semantic" if r.memory.has_embeddings else "keyword"
-    console.print(f"[green]✓[/green] Remembered #{mid} [dim]({mode} index)[/dim]")
+    mid = r.remember(content, tags=tag_list, scope=scope)
+    if mid is None:
+        console.print("[yellow]Already remembered (duplicate skipped).[/yellow]")
+    else:
+        mode = "semantic" if r.memory.has_embeddings else "keyword"
+        console.print(f"[green]✓[/green] Remembered #{mid} in '{scope or r.scope}' [dim]({mode})[/dim]")
     r.close()
 
 
@@ -49,10 +113,11 @@ def add(
 def search(
     query: str = typer.Argument(..., help="What to look for."),
     limit: int = typer.Option(5, "--limit", "-n"),
+    all_scopes: bool = typer.Option(False, "--all", help="Search across all scopes."),
 ):
     """Search your memories."""
     r = _r()
-    hits = r.recall_memories(query, limit=limit)
+    hits = r.recall_memories(query, limit=limit, scope=None if all_scopes else r.scope)
     if not hits:
         console.print("[yellow]No matching memories.[/yellow]")
         r.close()
@@ -61,28 +126,34 @@ def search(
     table.add_column("ID", style="cyan", justify="right")
     table.add_column("Score", style="magenta", justify="right")
     table.add_column("Memory")
+    table.add_column("Scope", style="blue")
     table.add_column("Tags", style="dim")
     for m in hits:
-        table.add_row(str(m.id), f"{m.score:.2f}", m.content, ", ".join(m.tags))
+        table.add_row(str(m.id), f"{m.score:.2f}", m.content, m.scope, ", ".join(m.tags))
     console.print(table)
     r.close()
 
 
 @app.command("list")
-def list_memories():
-    """List all stored memories."""
+def list_memories(
+    all_scopes: bool = typer.Option(False, "--all", help="List across all scopes."),
+):
+    """List stored memories (active scope by default)."""
     r = _r()
-    mems = r.store.all_memories()
+    mems = r.store.all_memories(scope=None if all_scopes else r.scope)
     if not mems:
-        console.print("[yellow]No memories yet. Add one with: recall add \"...\"[/yellow]")
+        console.print(f"[yellow]No memories in '{r.scope}'. Add one: recall add \"...\"[/yellow]")
         r.close()
         return
-    table = Table(title=f"All memories ({len(mems)})")
+    table = Table(title=f"Memories ({len(mems)})" + ("" if all_scopes else f" · scope='{r.scope}'"))
     table.add_column("ID", style="cyan", justify="right")
     table.add_column("Memory")
+    table.add_column("Scope", style="blue")
+    table.add_column("Src", style="dim")
     table.add_column("Tags", style="dim")
     for m in mems:
-        table.add_row(str(m.id), m.content, ", ".join(m.tags))
+        src = "🤖" if m.source == "auto" else ""
+        table.add_row(str(m.id), m.content, m.scope, src, ", ".join(m.tags))
     console.print(table)
     r.close()
 
@@ -92,39 +163,88 @@ def forget(memory_id: int = typer.Argument(..., help="Memory ID to delete.")):
     """Delete a memory by ID."""
     r = _r()
     ok = r.store.delete_memory(memory_id)
-    if ok:
-        console.print(f"[green]✓[/green] Forgot #{memory_id}")
-    else:
-        console.print(f"[red]✗[/red] No memory #{memory_id}")
+    console.print(f"[green]✓[/green] Forgot #{memory_id}" if ok else f"[red]✗[/red] No memory #{memory_id}")
     r.close()
 
 
 @app.command()
+def scope(name: str = typer.Argument(None, help="Scope to switch to. Omit to list scopes.")):
+    """Switch the active memory scope, or list scopes."""
+    r = _r()
+    if name is None:
+        scopes = r.store.list_scopes()
+        table = Table(title="Memory scopes")
+        table.add_column("Scope", style="cyan")
+        table.add_column("Memories", justify="right")
+        table.add_column("Active", justify="center")
+        seen = {s for s, _ in scopes}
+        if r.scope not in seen:
+            scopes.append((r.scope, 0))
+        for s, c in scopes:
+            table.add_row(s, str(c), "✓" if s == r.scope else "")
+        console.print(table)
+    else:
+        r.config.active_scope = name
+        r.config.save()
+        console.print(f"[green]✓[/green] Active scope → '{name}'")
+    r.close()
+
+
+# ---- chat ---------------------------------------------------------------
+@app.command()
 def chat(
-    provider: str = typer.Argument(..., help=f"One of: {', '.join(sorted(REGISTRY))}"),
-    model: str = typer.Argument(..., help="Model name, e.g. gpt-4o-mini"),
-    prompt: str = typer.Argument(..., help="Your message."),
+    arg1: str = typer.Argument(..., help="Provider, OR the prompt if defaults are set."),
+    arg2: str = typer.Argument(None, help="Model (when provider given)."),
+    arg3: str = typer.Argument(None, help="Prompt (when provider+model given)."),
     system: str = typer.Option(None, "--system", "-s"),
     no_memory: bool = typer.Option(False, "--no-memory", help="Skip memory injection."),
+    no_auto: bool = typer.Option(False, "--no-auto", help="Skip auto-memory capture."),
 ):
-    """Chat with any model — memory injected, cost & tokens traced automatically."""
+    """Chat with any model — memory injected, cost & tokens traced automatically.
+
+    Forms:
+      recall chat <provider> <model> "prompt"
+      recall chat "prompt"                  (uses configured defaults)
+    """
     r = _r()
+    # Flexible argument parsing.
+    if arg2 is None and arg3 is None:
+        provider, model, prompt = None, None, arg1
+    elif arg3 is None:
+        # ambiguous: treat as provider+prompt only if defaults missing model
+        provider, model, prompt = arg1, arg2, None
+        if prompt is None:
+            console.print("[red]Provide a prompt.[/red]")
+            r.close()
+            raise typer.Exit(1)
+    else:
+        provider, model, prompt = arg1, arg2, arg3
+
     try:
-        result = r.chat(provider, model, prompt, system=system, use_memory=not no_memory)
-    except Exception as e:  # noqa: BLE001 - surface adapter errors cleanly
+        out = r.chat(
+            provider, model, prompt,
+            system=system, use_memory=not no_memory,
+            auto_memory=not no_auto,
+        )
+    except Exception as e:  # noqa: BLE001
         console.print(f"[red]Error:[/red] {e}")
         r.close()
         raise typer.Exit(1)
-    console.print(result.text)
-    console.print(
-        f"\n[dim]— {result.model} · {result.input_tokens}+{result.output_tokens} tok[/dim]"
-    )
+
+    console.print(out.text)
+    meta = f"\n[dim]— {out.model} · {out.input_tokens}+{out.output_tokens} tok · ${out.cost_usd:.4f} · {out.latency_ms}ms[/dim]"
+    console.print(meta)
+    if out.auto_remembered:
+        console.print(f"[dim]🤖 remembered: {'; '.join(out.auto_remembered)}[/dim]")
+    if out.budget_warning:
+        console.print(f"[bold yellow]⚠ {out.budget_warning}[/bold yellow]")
     r.close()
 
 
+# ---- observability ------------------------------------------------------
 @app.command()
 def stats():
-    """Show token usage and cost across all calls."""
+    """Show token usage, cost, and budget."""
     r = _r()
     s = r.stats()
     console.print(f"[bold]recall stats[/bold]  [dim](v{__version__})[/dim]\n")
@@ -135,7 +255,16 @@ def stats():
         f"[cyan]{s['output_tokens']:,}[/cyan] out"
     )
     console.print(f"Total cost      : [green]${s['cost_usd']:.4f}[/green]")
+    budget = s.get("daily_budget", 0)
+    today = s.get("cost_today", 0)
+    if budget and budget > 0:
+        pct = today / budget * 100
+        color = "red" if pct >= 100 else "yellow" if pct >= 80 else "green"
+        console.print(f"Today           : [{color}]${today:.4f} / ${budget:.2f} ({pct:.0f}%)[/{color}]")
+    else:
+        console.print(f"Cost today      : [green]${today:.4f}[/green]")
     console.print(f"Avg latency     : [cyan]{s['avg_latency_ms']:.0f} ms[/cyan]")
+
     if s["by_model"]:
         table = Table(title="\nBy model")
         table.add_column("Model", style="cyan")
@@ -143,9 +272,7 @@ def stats():
         table.add_column("Tokens", justify="right")
         table.add_column("Cost", style="green", justify="right")
         for row in s["by_model"]:
-            table.add_row(
-                row["model"], str(row["calls"]), f"{row['tokens']:,}", f"${row['cost']:.4f}"
-            )
+            table.add_row(row["model"], str(row["calls"]), f"{row['tokens']:,}", f"${row['cost']:.4f}")
         console.print(table)
     r.close()
 
@@ -167,11 +294,8 @@ def recent(limit: int = typer.Option(20, "--limit", "-n")):
     table.add_column("Latency", justify="right")
     for row in rows:
         table.add_row(
-            row["model"],
-            str(row["input_tokens"]),
-            str(row["output_tokens"]),
-            f"${row['cost_usd']:.4f}",
-            f"{row['latency_ms']} ms",
+            row["model"], str(row["input_tokens"]), str(row["output_tokens"]),
+            f"${row['cost_usd']:.4f}", f"{row['latency_ms']} ms",
         )
     console.print(table)
     r.close()
@@ -185,11 +309,7 @@ def models():
     table.add_column("API key env var", style="green")
     table.add_column("Default base URL", style="dim")
     for name in sorted(REGISTRY):
-        table.add_row(
-            name,
-            KEY_ENV.get(name, "RECALL_API_KEY"),
-            BASE_URLS.get(name, "(provider default)"),
-        )
+        table.add_row(name, KEY_ENV.get(name, "RECALL_API_KEY"), BASE_URLS.get(name, "(provider default)"))
     console.print(table)
     console.print(
         "\n[dim]Set the matching env var, or RECALL_API_KEY as a fallback. "
@@ -197,6 +317,58 @@ def models():
     )
 
 
+# ---- export / import ----------------------------------------------------
+@app.command("export")
+def export_cmd(
+    path: str = typer.Argument(..., help="Output JSON file."),
+    all_scopes: bool = typer.Option(True, "--all/--scope-only", help="Export all scopes."),
+):
+    """Export memories to a JSON file."""
+    r = _r()
+    n = r.export_memories(Path(path), scope=None if all_scopes else r.scope)
+    console.print(f"[green]✓[/green] Exported {n} memories → {path}")
+    r.close()
+
+
+@app.command("import")
+def import_cmd(path: str = typer.Argument(..., help="Input JSON file.")):
+    """Import memories from a JSON file (duplicates skipped)."""
+    r = _r()
+    n = r.import_memories(Path(path))
+    console.print(f"[green]✓[/green] Imported {n} new memories from {path}")
+    r.close()
+
+
+# ---- config -------------------------------------------------------------
+@config_app.command("show")
+def config_show():
+    """Show current configuration."""
+    cfg = Config.load()
+    table = Table(title=f"Config ({config_path()})")
+    table.add_column("Key", style="cyan")
+    table.add_column("Value")
+    for k in ("default_provider", "default_model", "daily_budget_usd",
+              "auto_memory", "memory_inject_limit", "active_scope"):
+        table.add_row(k, str(getattr(cfg, k)))
+    console.print(table)
+
+
+@config_app.command("set")
+def config_set(key: str = typer.Argument(...), value: str = typer.Argument(...)):
+    """Set a config value, e.g. `recall config set daily_budget_usd 1.0`."""
+    cfg = Config.load()
+    cfg.set(key, value)
+    cfg.save()
+    console.print(f"[green]✓[/green] {key} = {cfg.get(key)}")
+
+
+@config_app.command("path")
+def config_path_cmd():
+    """Print the config file path."""
+    console.print(str(config_path()))
+
+
+# ---- dashboard / version ------------------------------------------------
 @app.command()
 def dashboard(port: int = typer.Option(8745, "--port", "-p")):
     """Launch the local web dashboard (requires: pip install 'recall-ai[dashboard]')."""

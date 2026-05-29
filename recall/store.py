@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS memories (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     content    TEXT NOT NULL,
     tags       TEXT NOT NULL DEFAULT '',
+    scope      TEXT NOT NULL DEFAULT 'default',
+    source     TEXT NOT NULL DEFAULT 'manual',
     embedding  BLOB,
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL
@@ -54,7 +56,15 @@ CREATE TABLE IF NOT EXISTS traces (
 
 CREATE INDEX IF NOT EXISTS idx_traces_created ON traces(created_at);
 CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created_at);
+CREATE INDEX IF NOT EXISTS idx_memories_scope ON memories(scope);
 """
+
+# Lightweight migrations for older DBs created before a column existed.
+MIGRATIONS = [
+    "ALTER TABLE memories ADD COLUMN scope TEXT NOT NULL DEFAULT 'default'",
+    "ALTER TABLE memories ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'",
+    "ALTER TABLE traces ADD COLUMN scope TEXT NOT NULL DEFAULT 'default'",
+]
 
 
 @dataclass
@@ -63,6 +73,8 @@ class Memory:
     content: str
     tags: list[str]
     created_at: float
+    scope: str = "default"
+    source: str = "manual"
     score: float = 0.0  # populated during search
 
 
@@ -84,7 +96,15 @@ class Store:
         self.conn = sqlite3.connect(str(self.path))
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
+        self._migrate()
         self.conn.commit()
+
+    def _migrate(self) -> None:
+        for stmt in MIGRATIONS:
+            try:
+                self.conn.execute(stmt)
+            except sqlite3.OperationalError:
+                pass  # column already exists
 
     # ---- memories -------------------------------------------------------
     def add_memory(
@@ -92,37 +112,55 @@ class Store:
         content: str,
         tags: Optional[Iterable[str]] = None,
         embedding: Optional[bytes] = None,
+        scope: str = "default",
+        source: str = "manual",
     ) -> int:
         now = time.time()
         tag_str = ",".join(sorted(set(t.strip() for t in (tags or []) if t.strip())))
         cur = self.conn.execute(
-            "INSERT INTO memories (content, tags, embedding, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (content, tag_str, embedding, now, now),
+            "INSERT INTO memories (content, tags, scope, source, embedding, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (content, tag_str, scope, source, embedding, now, now),
         )
         self.conn.commit()
         return int(cur.lastrowid)
 
-    def all_memories(self) -> list[Memory]:
-        rows = self.conn.execute(
-            "SELECT id, content, tags, created_at FROM memories ORDER BY created_at DESC"
-        ).fetchall()
-        return [
-            Memory(
-                id=r["id"],
-                content=r["content"],
-                tags=[t for t in r["tags"].split(",") if t],
-                created_at=r["created_at"],
-            )
-            for r in rows
-        ]
+    def _row_to_memory(self, r, score: float = 0.0) -> Memory:
+        return Memory(
+            id=r["id"],
+            content=r["content"],
+            tags=[t for t in r["tags"].split(",") if t],
+            created_at=r["created_at"],
+            scope=r["scope"],
+            source=r["source"],
+            score=score,
+        )
 
-    def all_memories_with_embeddings(self) -> list[tuple[int, str, list[str], Optional[bytes], float]]:
-        rows = self.conn.execute(
-            "SELECT id, content, tags, embedding, created_at FROM memories"
-        ).fetchall()
+    def all_memories(self, scope: Optional[str] = None) -> list[Memory]:
+        if scope:
+            rows = self.conn.execute(
+                "SELECT * FROM memories WHERE scope = ? ORDER BY created_at DESC", (scope,)
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT * FROM memories ORDER BY created_at DESC"
+            ).fetchall()
+        return [self._row_to_memory(r) for r in rows]
+
+    def all_memories_with_embeddings(
+        self, scope: Optional[str] = None
+    ) -> list[tuple[int, str, list[str], Optional[bytes], float, str, str]]:
+        if scope:
+            rows = self.conn.execute(
+                "SELECT * FROM memories WHERE scope = ?", (scope,)
+            ).fetchall()
+        else:
+            rows = self.conn.execute("SELECT * FROM memories").fetchall()
         return [
-            (r["id"], r["content"], [t for t in r["tags"].split(",") if t], r["embedding"], r["created_at"])
+            (
+                r["id"], r["content"], [t for t in r["tags"].split(",") if t],
+                r["embedding"], r["created_at"], r["scope"], r["source"],
+            )
             for r in rows
         ]
 
@@ -131,23 +169,35 @@ class Store:
         self.conn.commit()
         return cur.rowcount > 0
 
-    def keyword_search(self, query: str, limit: int = 5) -> list[Memory]:
-        like = f"%{query.strip()}%"
+    def memory_exists(self, content: str, scope: str = "default") -> bool:
+        row = self.conn.execute(
+            "SELECT 1 FROM memories WHERE content = ? AND scope = ? LIMIT 1",
+            (content.strip(), scope),
+        ).fetchone()
+        return row is not None
+
+    def list_scopes(self) -> list[tuple[str, int]]:
         rows = self.conn.execute(
-            "SELECT id, content, tags, created_at FROM memories "
-            "WHERE content LIKE ? OR tags LIKE ? ORDER BY created_at DESC LIMIT ?",
-            (like, like, limit),
+            "SELECT scope, COUNT(*) AS c FROM memories GROUP BY scope ORDER BY c DESC"
         ).fetchall()
-        return [
-            Memory(
-                id=r["id"],
-                content=r["content"],
-                tags=[t for t in r["tags"].split(",") if t],
-                created_at=r["created_at"],
-                score=1.0,
-            )
-            for r in rows
-        ]
+        return [(r["scope"], r["c"]) for r in rows]
+
+    def keyword_search(self, query: str, limit: int = 5, scope: Optional[str] = None) -> list[Memory]:
+        like = f"%{query.strip()}%"
+        if scope:
+            rows = self.conn.execute(
+                "SELECT * FROM memories "
+                "WHERE (content LIKE ? OR tags LIKE ?) AND scope = ? "
+                "ORDER BY created_at DESC LIMIT ?",
+                (like, like, scope, limit),
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT * FROM memories "
+                "WHERE content LIKE ? OR tags LIKE ? ORDER BY created_at DESC LIMIT ?",
+                (like, like, limit),
+            ).fetchall()
+        return [self._row_to_memory(r, score=1.0) for r in rows]
 
     # ---- traces ---------------------------------------------------------
     def add_trace(self, trace: Trace) -> int:
@@ -193,6 +243,26 @@ class Store:
             "by_model": [dict(r) for r in by_model],
             "memory_count": self.conn.execute("SELECT COUNT(*) AS c FROM memories").fetchone()["c"],
         }
+
+    def cost_since(self, since_ts: float) -> float:
+        row = self.conn.execute(
+            "SELECT COALESCE(SUM(cost_usd),0) AS cost FROM traces WHERE created_at >= ?",
+            (since_ts,),
+        ).fetchone()
+        return row["cost"]
+
+    def export_memories(self, scope: Optional[str] = None) -> list[dict]:
+        mems = self.all_memories(scope=scope)
+        return [
+            {
+                "content": m.content,
+                "tags": m.tags,
+                "scope": m.scope,
+                "source": m.source,
+                "created_at": m.created_at,
+            }
+            for m in mems
+        ]
 
     def recent_traces(self, limit: int = 20) -> list[dict]:
         rows = self.conn.execute(

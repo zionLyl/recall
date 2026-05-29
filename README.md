@@ -18,6 +18,18 @@ AI agents have two chronic problems:
 memories *and* every call's tokens/cost/latency. Switch from GPT to Claude to
 DeepSeek to Qwen — your memory and your bill follow you.
 
+### What you get
+
+- 🧠 **Persistent memory** across sessions *and* across models
+- 🤖 **Auto-memory** — it captures your preferences from conversation (EN + 中文)
+- 📊 **Full observability** — tokens, cost, and latency for every call
+- 💰 **Daily budget** with 80% / 100% warnings
+- 🗂️ **Scopes** — isolate memory per project (`work`, `home`, …)
+- 🔌 **22 providers** — cloud, Chinese clouds, fast-inference hosts, local
+- 📦 **Export / import** — your memory is portable JSON
+- 🖥️ **Local web dashboard** — memory + cost at a glance
+- 🏠 **100% local** — no accounts, no servers, no telemetry
+
 ```
 ┌──────────────┐     ┌─────────────────────────────┐
 │  any model   │     │  recall (local SQLite)       │
@@ -40,6 +52,9 @@ pip install recall-ai            # base (keyword memory + tracing)
 ```
 
 ```bash
+# 0. (optional) guided setup: pick a default model, detect API keys
+recall init
+
 # 1. Teach it about you (once)
 recall add "I prefer concise answers with tables" --tags style
 recall add "I do A-share & HK quant research"     --tags work
@@ -47,8 +62,12 @@ recall add "I do A-share & HK quant research"     --tags work
 # 2. Chat with ANY model — it already knows you, and the call is traced
 export OPENAI_API_KEY=sk-...
 recall chat openai gpt-4o-mini "How should you reply to me?"
+#   ↑ also auto-captures new preferences you mention
 
-# 3. See exactly what you spent
+# with defaults configured, just:
+recall chat "what do I work on?"
+
+# 3. See exactly what you spent (and your budget)
 recall stats
 ```
 
@@ -132,18 +151,45 @@ recall models   # list all providers + key env vars + base URLs
 > at the right base URL (handled automatically). Gemini has its own native
 > adapter. Local models (Ollama / LM Studio) need no key and no cloud.
 
+## Scopes, budget & config
+
+```bash
+# Isolate memory per project
+recall scope work            # switch active scope
+recall add "deadline Friday" # stored in 'work'
+recall scope                 # list all scopes
+recall list --all            # see every scope
+
+# Set a daily spend cap (warns at 80% and 100%)
+recall config set daily_budget_usd 1.0
+
+# Defaults so you can just `recall chat "..."`
+recall config set default_provider deepseek
+recall config set default_model deepseek-chat
+recall config show
+
+# Backup / move your brain
+recall export my-brain.json
+recall import my-brain.json
+```
+
 ## CLI reference
 
 | Command | What it does |
 |---|---|
-| `recall add "..." [--tags a,b]` | Store a memory |
-| `recall search "..."` | Semantic (or keyword) search |
-| `recall list` | List all memories |
+| `recall init` | Guided first-time setup |
+| `recall doctor` | Show which providers have keys |
+| `recall add "..." [--tags a,b] [--scope s]` | Store a memory |
+| `recall search "..." [--all]` | Semantic (or keyword) search |
+| `recall list [--all]` | List memories (active scope) |
 | `recall forget <id>` | Delete a memory |
-| `recall chat <provider> <model> "..."` | Chat with memory + tracing |
-| `recall stats` | Token usage & cost overview |
+| `recall scope [name]` | Switch / list scopes |
+| `recall chat [provider model] "..."` | Chat with memory + tracing + auto-memory |
+| `recall stats` | Tokens, cost & budget overview |
 | `recall recent` | Recent model calls |
 | `recall models` | Supported providers |
+| `recall export/import <file>` | Backup / restore memories |
+| `recall config show/set/path` | View & edit configuration |
 | `recall dashboard` | Launch local web UI |
 
 ## Where is my data?
@@ -160,11 +206,16 @@ it — it's yours.
 
 ## Roadmap
 
-- [ ] Auto-extract memories from conversations
-- [ ] Memory editing & merge
-- [ ] Budget alerts ("you've spent $X today")
-- [ ] More adapters (Gemini, local Ollama)
-- [ ] Export / import memories
+- [x] Auto-extract memories from conversations
+- [x] Budget alerts ("you've spent $X today")
+- [x] Gemini + local Ollama / LM Studio adapters
+- [x] Export / import memories
+- [x] Memory scopes
+- [ ] Memory editing & merge / dedupe by similarity
+- [ ] Streaming chat output
+- [ ] LLM-based memory extraction (opt-in, higher recall)
+- [ ] PyPI release (`pip install recall-ai`)
+- [ ] MCP server so any agent can read/write recall memory
 
 ## Contributing
 

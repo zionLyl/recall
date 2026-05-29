@@ -17,7 +17,25 @@ def _page() -> str:
     s = r.stats()
     mems = r.store.all_memories()
     recent = r.recent(limit=15)
+    scopes = r.store.list_scopes()
+    budget = s.get("daily_budget", 0) or 0
+    today = s.get("cost_today", 0) or 0
     r.close()
+
+    budget_html = ""
+    if budget > 0:
+        pct = min(today / budget * 100, 100)
+        bar_color = "#e5484d" if pct >= 100 else "#f5a623" if pct >= 80 else "#30a46c"
+        budget_html = (
+            f"<div class='budget'><div class='blabel'>Today · "
+            f"${today:.4f} / ${budget:.2f}</div>"
+            f"<div class='btrack'><div class='bfill' style='width:{pct:.0f}%;"
+            f"background:{bar_color}'></div></div></div>"
+        )
+
+    scope_html = " ".join(
+        f"<span class='chip'>{html.escape(sc)} · {c}</span>" for sc, c in scopes
+    ) or "<span class='dim'>no scopes</span>"
 
     mem_rows = "".join(
         f"<tr><td>{m.id}</td><td>{html.escape(m.content)}</td>"
@@ -40,6 +58,7 @@ def _page() -> str:
 
     return f"""<!doctype html>
 <html><head><meta charset="utf-8"><title>recall dashboard</title>
+<meta http-equiv="refresh" content="5">
 <style>
   body{{font-family:-apple-system,system-ui,sans-serif;max-width:880px;margin:40px auto;
        padding:0 20px;color:#222;background:#fafafa}}
@@ -53,16 +72,23 @@ def _page() -> str:
   th,td{{text-align:left;padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:14px}}
   th{{background:#f7f7f7;color:#555}} .dim{{color:#aaa}}
   h2{{margin-top:32px;font-size:18px}}
+  .budget{{margin:16px 0}} .blabel{{font-size:13px;color:#666;margin-bottom:6px}}
+  .btrack{{height:10px;background:#eee;border-radius:6px;overflow:hidden}}
+  .bfill{{height:100%;border-radius:6px;transition:width .3s}}
+  .chips{{margin:8px 0 0}} .chip{{display:inline-block;background:#eef;color:#446;
+         border-radius:20px;padding:3px 12px;font-size:12px;margin:2px}}
 </style></head>
 <body>
   <h1>🧠 recall</h1>
-  <p class="sub">Local AI brain — memory & cost. Data never leaves this machine.</p>
+  <p class="sub">Local AI brain — memory & cost. Data never leaves this machine. <span class="dim">(auto-refreshes)</span></p>
   <div class="cards">
     <div class="card"><div class="n">{s['memory_count']}</div><div class="l">memories</div></div>
     <div class="card"><div class="n">{s['calls']}</div><div class="l">model calls</div></div>
     <div class="card"><div class="n">{s['input_tokens']+s['output_tokens']:,}</div><div class="l">tokens</div></div>
     <div class="card"><div class="n">${s['cost_usd']:.4f}</div><div class="l">total cost</div></div>
   </div>
+  {budget_html}
+  <div class="chips">{scope_html}</div>
   <h2>Cost by model</h2>
   <table><tr><th>Model</th><th>Calls</th><th>Tokens</th><th>Cost</th></tr>{model_rows}</table>
   <h2>Memories</h2>
