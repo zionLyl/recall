@@ -1,0 +1,47 @@
+name: Publish to PyPI
+
+# Publishes recall-ai to PyPI when a version tag is pushed (e.g. v0.3.0).
+# Uses PyPI Trusted Publishing (OIDC) — no API token stored in the repo.
+#
+# One-time setup on PyPI:
+#   1. Create the project `recall-ai` (or let the first manual upload create it).
+#   2. PyPI → project → Publishing → add a trusted publisher:
+#        owner: zionLyl  repo: recall  workflow: publish.yml  environment: pypi
+#
+# Then releasing is just:  git tag v0.3.0 && git push origin v0.3.0
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build sdist + wheel
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # required for trusted publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

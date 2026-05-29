@@ -1,6 +1,6 @@
 [project]
 name = "recall-ai"
-version = "0.2.0"
+version = "0.3.0"
 description = "Your local AI brain: persistent memory + full observability for any model. Data never leaves your machine."
 readme = "README.md"
 license = { text = "MIT" }
@@ -29,6 +29,8 @@ anthropic = ["anthropic>=0.18"]
 gemini = ["google-generativeai>=0.5"]
 # Dashboard
 dashboard = ["fastapi>=0.110", "uvicorn>=0.27"]
+# MCP server — expose recall memory to any MCP-aware agent
+mcp = ["mcp>=1.0"]
 # Everything
 all = [
     "sentence-transformers>=2.2",
@@ -37,6 +39,7 @@ all = [
     "google-generativeai>=0.5",
     "fastapi>=0.110",
     "uvicorn>=0.27",
+    "mcp>=1.0",
 ]
 dev = ["pytest>=7.0", "ruff>=0.4"]
 

@@ -25,7 +25,10 @@ class Config:
     default_model: Optional[str] = None
     daily_budget_usd: float = 0.0          # 0 = no budget
     auto_memory: bool = True               # auto-extract memories after chat
+    extraction_mode: str = "heuristic"     # "heuristic" (free) or "llm" (opt-in, higher recall)
+    extraction_model: Optional[str] = None  # model for llm extraction (defaults to chat model)
     memory_inject_limit: int = 5
+    stream: bool = True                    # stream chat output token-by-token
     active_scope: str = "default"          # which memory scope is active
     extras: dict = field(default_factory=dict)
 

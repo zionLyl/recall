@@ -199,6 +199,7 @@ def chat(
     system: str = typer.Option(None, "--system", "-s"),
     no_memory: bool = typer.Option(False, "--no-memory", help="Skip memory injection."),
     no_auto: bool = typer.Option(False, "--no-auto", help="Skip auto-memory capture."),
+    stream: bool = typer.Option(None, "--stream/--no-stream", help="Stream output token-by-token (default from config)."),
 ):
     """Chat with any model — memory injected, cost & tokens traced automatically.
 
@@ -220,19 +221,31 @@ def chat(
     else:
         provider, model, prompt = arg1, arg2, arg3
 
+    use_stream = r.config.stream if stream is None else stream
+
     try:
-        out = r.chat(
-            provider, model, prompt,
-            system=system, use_memory=not no_memory,
-            auto_memory=not no_auto,
-        )
+        if use_stream:
+            # Write chunks straight to stdout (markup-free) for live typing.
+            out = r.stream(
+                provider, model, prompt,
+                on_token=lambda t: (typer.echo(t, nl=False)),
+                system=system, use_memory=not no_memory,
+                auto_memory=not no_auto,
+            )
+            typer.echo("")  # newline after the streamed reply
+        else:
+            out = r.chat(
+                provider, model, prompt,
+                system=system, use_memory=not no_memory,
+                auto_memory=not no_auto,
+            )
+            console.print(out.text, markup=False)
     except Exception as e:  # noqa: BLE001
         console.print(f"[red]Error:[/red] {e}")
         r.close()
         raise typer.Exit(1)
 
-    console.print(out.text)
-    meta = f"\n[dim]— {out.model} · {out.input_tokens}+{out.output_tokens} tok · ${out.cost_usd:.4f} · {out.latency_ms}ms[/dim]"
+    meta = f"[dim]— {out.model} · {out.input_tokens}+{out.output_tokens} tok · ${out.cost_usd:.4f} · {out.latency_ms}ms[/dim]"
     console.print(meta)
     if out.auto_remembered:
         console.print(f"[dim]🤖 remembered: {'; '.join(out.auto_remembered)}[/dim]")
@@ -348,7 +361,8 @@ def config_show():
     table.add_column("Key", style="cyan")
     table.add_column("Value")
     for k in ("default_provider", "default_model", "daily_budget_usd",
-              "auto_memory", "memory_inject_limit", "active_scope"):
+              "auto_memory", "extraction_mode", "extraction_model",
+              "memory_inject_limit", "stream", "active_scope"):
         table.add_row(k, str(getattr(cfg, k)))
     console.print(table)
 
@@ -375,10 +389,28 @@ def dashboard(port: int = typer.Option(8745, "--port", "-p")):
     try:
         from .dashboard.server import serve
     except ImportError as e:
-        console.print(f"[red]Dashboard deps missing:[/red] {e}")
-        console.print("Install with: pip install 'recall-ai[dashboard]'")
+        console.print(f"[red]Dashboard deps missing:[/red] {e}", markup=False)
+        console.print("Install with: pip install 'recall-ai[dashboard]'", markup=False)
         raise typer.Exit(1)
     serve(port=port)
+
+
+@app.command()
+def mcp():
+    """Run recall as an MCP server (stdio) so any agent can read/write memory.
+
+    Wire it into an MCP client with:
+      {"mcpServers": {"recall": {"command": "recall", "args": ["mcp"]}}}
+
+    Requires: pip install 'recall-ai[mcp]'
+    """
+    try:
+        from .mcp_server import serve
+        serve()
+    except (ImportError, RuntimeError) as e:
+        console.print(f"[red]MCP unavailable:[/red] {e}", markup=False)
+        console.print("Install with: pip install 'recall-ai[mcp]'", markup=False)
+        raise typer.Exit(1)
 
 
 @app.command()

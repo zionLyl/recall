@@ -17,7 +17,7 @@ import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from .adapters import get_adapter
 from .adapters.base import ChatResult
@@ -69,6 +69,106 @@ class Recall:
         return self.memory.recall(query, limit=limit, scope=scope or self.scope)
 
     # ---- chat (memory + tracing wrapped around any model) ---------------
+    def _resolve(self, provider, model, scope, memory_limit):
+        provider = provider or self.config.default_provider
+        model = model or self.config.default_model
+        if not provider or not model:
+            raise ValueError(
+                "No provider/model given and no defaults configured. "
+                "Run `recall config set default_provider ...` or pass them explicitly."
+            )
+        scope = scope or self.scope
+        memory_limit = (
+            memory_limit if memory_limit is not None else self.config.memory_inject_limit
+        )
+        return provider, model, scope, memory_limit
+
+    def _inject(self, prompt, system, use_memory, memory_limit, scope) -> Optional[str]:
+        final_system = system or ""
+        if use_memory:
+            ctx = self.memory.build_context(prompt, limit=memory_limit, scope=scope)
+            if ctx:
+                final_system = (final_system + "\n\n" + ctx).strip()
+        return final_system or None
+
+    def _finalize(
+        self, result: ChatResult, prompt, latency_ms, auto_memory, scope, provider, model,
+        api_key, base_url,
+    ) -> ChatOutcome:
+        """Record the trace, auto-capture memories, and build the outcome."""
+        cost = estimate_cost(result.model, result.input_tokens, result.output_tokens)
+        self.store.add_trace(
+            Trace(
+                model=result.model,
+                provider=result.provider,
+                prompt=prompt,
+                completion=result.text,
+                input_tokens=result.input_tokens,
+                output_tokens=result.output_tokens,
+                cost_usd=cost,
+                latency_ms=latency_ms,
+            )
+        )
+        captured = self._auto_capture(
+            prompt, auto_memory, scope, provider, model, api_key, base_url
+        )
+        return ChatOutcome(
+            text=result.text,
+            model=result.model,
+            provider=result.provider,
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
+            cost_usd=cost,
+            latency_ms=latency_ms,
+            auto_remembered=captured,
+            budget_warning=self._budget_warning(),
+        )
+
+    def _auto_capture(
+        self, prompt, auto_memory, scope, provider, model, api_key, base_url
+    ) -> list[str]:
+        auto = auto_memory if auto_memory is not None else self.config.auto_memory
+        if not auto:
+            return []
+
+        candidates: list[str] = []
+        if getattr(self.config, "extraction_mode", "heuristic") == "llm":
+            try:
+                from .extract_llm import extract_memories_llm
+
+                ex_model = self.config.extraction_model or model
+                candidates, ex_result = extract_memories_llm(
+                    prompt, provider, ex_model, api_key=api_key, base_url=base_url
+                )
+                # Record the extraction call's cost so the budget stays honest.
+                if ex_result is not None:
+                    self.store.add_trace(
+                        Trace(
+                            model=ex_result.model,
+                            provider=ex_result.provider,
+                            prompt="[memory-extraction]",
+                            completion=ex_result.text,
+                            input_tokens=ex_result.input_tokens,
+                            output_tokens=ex_result.output_tokens,
+                            cost_usd=estimate_cost(
+                                ex_result.model,
+                                ex_result.input_tokens,
+                                ex_result.output_tokens,
+                            ),
+                        )
+                    )
+            except Exception:  # noqa: BLE001 — fall back to heuristic on any failure
+                candidates = extract_memories(prompt)
+        else:
+            candidates = extract_memories(prompt)
+
+        captured: list[str] = []
+        for cand in candidates:
+            mid = self.memory.remember(cand, scope=scope, source="auto")
+            if mid is not None:
+                captured.append(cand)
+        return captured
+
     def chat(
         self,
         provider: Optional[str] = None,
@@ -83,65 +183,62 @@ class Recall:
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
     ) -> ChatOutcome:
-        provider = provider or self.config.default_provider
-        model = model or self.config.default_model
-        if not provider or not model:
-            raise ValueError(
-                "No provider/model given and no defaults configured. "
-                "Run `recall config set default_provider ...` or pass them explicitly."
-            )
-        scope = scope or self.scope
-        memory_limit = memory_limit if memory_limit is not None else self.config.memory_inject_limit
-
-        # Inject relevant memories into the system prompt.
-        final_system = system or ""
-        if use_memory:
-            ctx = self.memory.build_context(prompt, limit=memory_limit, scope=scope)
-            if ctx:
-                final_system = (final_system + "\n\n" + ctx).strip()
-
+        provider, model, scope, memory_limit = self._resolve(
+            provider, model, scope, memory_limit
+        )
+        final_system = self._inject(prompt, system, use_memory, memory_limit, scope)
         adapter = get_adapter(provider, model, api_key=api_key, base_url=base_url)
 
         start = time.time()
-        result = adapter.chat(prompt, system=final_system or None)
+        result = adapter.chat(prompt, system=final_system)
         latency_ms = int((time.time() - start) * 1000)
 
-        cost = estimate_cost(result.model, result.input_tokens, result.output_tokens)
-        self.store.add_trace(
-            Trace(
-                model=result.model,
-                provider=result.provider,
-                prompt=prompt,
-                completion=result.text,
-                input_tokens=result.input_tokens,
-                output_tokens=result.output_tokens,
-                cost_usd=cost,
-                latency_ms=latency_ms,
-            )
+        return self._finalize(
+            result, prompt, latency_ms, auto_memory, scope, provider, model,
+            api_key, base_url,
         )
 
-        # Auto-extract memories from the user's prompt.
-        auto = auto_memory if auto_memory is not None else self.config.auto_memory
-        captured: list[str] = []
-        if auto:
-            for cand in extract_memories(prompt):
-                mid = self.memory.remember(cand, scope=scope, source="auto")
-                if mid is not None:
-                    captured.append(cand)
+    def stream(
+        self,
+        provider: Optional[str] = None,
+        model: Optional[str] = None,
+        prompt: str = "",
+        *,
+        on_token: Optional[Callable[[str], None]] = None,
+        system: Optional[str] = None,
+        use_memory: bool = True,
+        memory_limit: Optional[int] = None,
+        auto_memory: Optional[bool] = None,
+        scope: Optional[str] = None,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+    ) -> ChatOutcome:
+        """Like ``chat()`` but streams the reply token-by-token.
 
-        # Budget check.
-        warning = self._budget_warning()
+        Each chunk is passed to ``on_token`` as it arrives; the full outcome
+        (text, tokens, cost, auto-memory, budget) is returned once complete.
+        """
+        provider, model, scope, memory_limit = self._resolve(
+            provider, model, scope, memory_limit
+        )
+        final_system = self._inject(prompt, system, use_memory, memory_limit, scope)
+        adapter = get_adapter(provider, model, api_key=api_key, base_url=base_url)
 
-        return ChatOutcome(
-            text=result.text,
-            model=result.model,
-            provider=result.provider,
-            input_tokens=result.input_tokens,
-            output_tokens=result.output_tokens,
-            cost_usd=cost,
-            latency_ms=latency_ms,
-            auto_remembered=captured,
-            budget_warning=warning,
+        start = time.time()
+        parts: list[str] = []
+        for chunk in adapter.stream(prompt, system=final_system):
+            parts.append(chunk)
+            if on_token is not None:
+                on_token(chunk)
+        latency_ms = int((time.time() - start) * 1000)
+
+        result = adapter.last_result or ChatResult(
+            text="".join(parts), input_tokens=0, output_tokens=0,
+            model=model, provider=provider,
+        )
+        return self._finalize(
+            result, prompt, latency_ms, auto_memory, scope, provider, model,
+            api_key, base_url,
         )
 
     def _budget_warning(self) -> Optional[str]:

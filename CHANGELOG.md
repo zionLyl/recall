@@ -1,6 +1,34 @@
 # Changelog
 
-## [0.2.0] - Unreleased
+## [0.3.0]
+
+Streaming, smarter memory, and the MCP bridge.
+
+### Added
+- **Streaming chat**: replies now type out token-by-token. `Recall.stream(...)`
+  yields chunks via an `on_token` callback and still returns the full
+  `ChatOutcome` (text, tokens, cost, auto-memory, budget). CLI: streams by
+  default; toggle with `recall chat --no-stream` or `config set stream false`.
+  Every adapter supports it — native OpenAI / Anthropic / Gemini adapters stream
+  for real, others transparently fall back to a single chunk.
+- **LLM-based memory extraction** (opt-in): set `extraction_mode = "llm"` to let
+  a model pull durable first-person facts from each message — higher recall than
+  the heuristic patterns. Configurable extraction model (`extraction_model`),
+  its cost is traced, and it falls back to the heuristic extractor on any error.
+- **MCP server** (`recall mcp`): exposes your memory to any MCP-aware agent
+  (Claude Desktop, Claude Code, Cursor, …) as tools — `remember`,
+  `recall_search`, `list_memories`, `forget`, `usage_stats`. Same local SQLite
+  store, nothing leaves your machine. Install with `pip install 'recall-ai[mcp]'`.
+
+### Fixed
+- Install hints (`recall-ai[dashboard]`, `recall-ai[mcp]`) and model output are
+  no longer mangled by Rich markup parsing.
+
+### Packaging
+- PyPI Trusted Publishing workflow (`.github/workflows/publish.yml`): push a
+  `vX.Y.Z` tag to publish. CI workflow runs lint + tests on 3.9 / 3.11 / 3.12.
+
+## [0.2.0]
 
 Major feature round.
 
@@ -28,7 +56,7 @@ Major feature round.
 - `Recall.chat()` now returns a richer `ChatOutcome` (cost, latency,
   auto-remembered list, budget warning).
 
-## [0.1.0] - Unreleased
+## [0.1.0]
 
 First MVP.
 

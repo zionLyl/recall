@@ -22,10 +22,13 @@ DeepSeek to Qwen — your memory and your bill follow you.
 
 - 🧠 **Persistent memory** across sessions *and* across models
 - 🤖 **Auto-memory** — it captures your preferences from conversation (EN + 中文)
+- 🧬 **LLM extraction** (opt-in) — let a model pull memories for higher recall
+- 🌊 **Streaming** — replies type out token-by-token
 - 📊 **Full observability** — tokens, cost, and latency for every call
 - 💰 **Daily budget** with 80% / 100% warnings
 - 🗂️ **Scopes** — isolate memory per project (`work`, `home`, …)
 - 🔌 **22 providers** — cloud, Chinese clouds, fast-inference hosts, local
+- 🔗 **MCP server** — any agent (Claude Desktop/Code, Cursor) reads/writes your memory
 - 📦 **Export / import** — your memory is portable JSON
 - 🖥️ **Local web dashboard** — memory + cost at a glance
 - 🏠 **100% local** — no accounts, no servers, no telemetry
@@ -48,7 +51,11 @@ pip install recall-ai            # base (keyword memory + tracing)
 #   pip install 'recall-ai[openai]'      # GPT / DeepSeek / Qwen
 #   pip install 'recall-ai[anthropic]'   # Claude
 #   pip install 'recall-ai[dashboard]'   # web dashboard
+#   pip install 'recall-ai[mcp]'         # MCP server
 #   pip install 'recall-ai[all]'         # everything
+
+# not on PyPI yet? install straight from source:
+#   pip install 'git+https://github.com/zionLyl/recall.git#egg=recall-ai[all]'
 ```
 
 ```bash
@@ -112,6 +119,63 @@ recall dashboard          # → http://127.0.0.1:8745
 
 A single local page: memory cards, cost-by-model, recent calls. No build step,
 no telemetry, no cloud.
+
+## Streaming
+
+Replies stream by default — you see tokens as the model produces them, then the
+usual cost/latency footer.
+
+```bash
+recall chat "draft a haiku about memory"   # streams token-by-token
+recall chat --no-stream "..."              # wait for the full reply instead
+recall config set stream false             # make non-streaming the default
+```
+
+From the library, pass an `on_token` callback; you still get the full outcome:
+
+```python
+out = r.stream("openai", "gpt-4o-mini", "tell me a joke",
+               on_token=lambda t: print(t, end="", flush=True))
+print(out.cost_usd, out.output_tokens)     # full accounting after streaming
+```
+
+## Smarter memory extraction (opt-in)
+
+By default recall captures memories with fast, free heuristics (regex cues, EN +
+中文). Flip on LLM extraction to have a model read each message and pull durable
+first-person facts — higher recall, at the cost of one extra (cheap) call that's
+also traced toward your budget.
+
+```bash
+recall config set extraction_mode llm          # heuristic (default) | llm
+recall config set extraction_model gpt-4o-mini # optional; defaults to chat model
+```
+
+If the extraction call ever fails (no key, network, bad output) recall silently
+falls back to the heuristic extractor, so chat never breaks.
+
+## MCP server — plug recall into any agent
+
+Expose your local memory to any MCP-aware client (Claude Desktop, Claude Code,
+Cursor, …) so the agent can read and write the *same* brain you use from the CLI.
+
+```bash
+pip install 'recall-ai[mcp]'
+recall mcp        # runs an MCP server over stdio
+```
+
+Wire it into your MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "recall": { "command": "recall", "args": ["mcp"] }
+  }
+}
+```
+
+Tools exposed: `remember`, `recall_search`, `list_memories`, `forget`,
+`usage_stats`. Same local SQLite store — nothing leaves your machine.
 
 ## Supported models (22 providers)
 
@@ -184,13 +248,14 @@ recall import my-brain.json
 | `recall list [--all]` | List memories (active scope) |
 | `recall forget <id>` | Delete a memory |
 | `recall scope [name]` | Switch / list scopes |
-| `recall chat [provider model] "..."` | Chat with memory + tracing + auto-memory |
+| `recall chat [provider model] "..." [--no-stream]` | Chat with memory + tracing + auto-memory |
 | `recall stats` | Tokens, cost & budget overview |
 | `recall recent` | Recent model calls |
 | `recall models` | Supported providers |
 | `recall export/import <file>` | Backup / restore memories |
 | `recall config show/set/path` | View & edit configuration |
 | `recall dashboard` | Launch local web UI |
+| `recall mcp` | Run as an MCP server (stdio) for any agent |
 
 ## Where is my data?
 
@@ -211,11 +276,11 @@ it — it's yours.
 - [x] Gemini + local Ollama / LM Studio adapters
 - [x] Export / import memories
 - [x] Memory scopes
+- [x] Streaming chat output
+- [x] LLM-based memory extraction (opt-in, higher recall)
+- [x] MCP server so any agent can read/write recall memory
+- [x] PyPI release (`pip install recall-ai`) — automated via tag push
 - [ ] Memory editing & merge / dedupe by similarity
-- [ ] Streaming chat output
-- [ ] LLM-based memory extraction (opt-in, higher recall)
-- [ ] PyPI release (`pip install recall-ai`)
-- [ ] MCP server so any agent can read/write recall memory
 
 ## Contributing
 
