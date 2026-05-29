@@ -33,6 +33,7 @@ class Config:
     memory_inject_limit: int = 5
     dedupe_similarity: float = 0.0         # 0 = exact-only; e.g. 0.95 suppresses near-dupes on add (needs embeddings)
     recency_weight: float = 0.0            # 0 = pure relevance; >0 blends recency/usage into retrieval ranking
+    graph_weight: float = 0.0              # 0 = off; >0 blends graph-connected memories into retrieval (needs relations)
     stream: bool = True                    # stream chat output token-by-token
     active_scope: str = "default"          # which memory scope is active
     extras: dict = field(default_factory=dict)

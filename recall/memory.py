@@ -182,9 +182,39 @@ class MemoryEngine:
                 })
         return merges
 
+    def _graph_expand(self, query: str, scope: Optional[str], limit: int) -> list[Memory]:
+        """Use the graph-lite relations to pull in memories about entities
+        *connected* to those named in the query — even if the query doesn't
+        mention them. e.g. query "Acme" → neighbor "Beijing" → memories about
+        Beijing surface too. Returns memories in expansion order."""
+        entities = [name for name, _ in self.store.entities(scope=scope)]
+        if not entities:
+            return []
+        ql = query.lower()
+        matched = [e for e in entities if e.lower() in ql]
+        if not matched:
+            return []
+        matched_lower = {e.lower() for e in matched}
+        neighbors: list[str] = []
+        seen_n: set[str] = set()
+        for entity in matched:
+            for rel in self.store.relations_for(entity, scope=scope):
+                other = rel["object"] if rel["subject"].lower() == entity.lower() else rel["subject"]
+                if other.lower() not in matched_lower and other.lower() not in seen_n:
+                    seen_n.add(other.lower())
+                    neighbors.append(other)
+        out: list[Memory] = []
+        seen_ids: set[int] = set()
+        for neighbor in neighbors:
+            for m in self.store.keyword_search(neighbor, limit=limit, scope=scope):
+                if m.id not in seen_ids:
+                    seen_ids.add(m.id)
+                    out.append(m)
+        return out
+
     def recall(
         self, query: str, limit: int = 5, scope: Optional[str] = None,
-        recency_weight: float = 0.0, touch: bool = True,
+        recency_weight: float = 0.0, graph_weight: float = 0.0, touch: bool = True,
     ) -> list[Memory]:
         model = _get_model()
         if model is None:
@@ -212,17 +242,23 @@ class MemoryEngine:
         pool = max(limit * 4, 10)
         keyword = self.store.keyword_search(query, limit=pool, scope=scope)
 
-        if not semantic and not keyword:
+        # Graph-aware expansion: memories about entities connected to the query.
+        graph_hits = self._graph_expand(query, scope, pool) if graph_weight > 0 else []
+
+        if not semantic and not keyword and not graph_hits:
             return []
 
         # Hybrid: fuse rankings with Reciprocal Rank Fusion so a memory ranked
-        # well by *either* signal surfaces, and one strong on *both* wins (mem0 /
-        # Zep do semantic + BM25). Kept dependency-free. RRF handles empty lists.
+        # well by *any* signal surfaces, and one strong on several wins (mem0 /
+        # Zep do semantic + BM25 + graph). Kept dependency-free; RRF handles empties.
         by_id: dict[int, Memory] = {}
-        for m in semantic[:pool] + keyword:
+        for m in semantic[:pool] + keyword + graph_hits:
             by_id.setdefault(m.id, m)
         rankings = [[m.id for m in semantic[:pool]], [m.id for m in keyword]]
         weights = [1.0, 1.0]
+        if graph_hits:
+            rankings.append([m.id for m in graph_hits])
+            weights.append(graph_weight)
         if recency_weight > 0 and by_id:
             # Lifecycle ranking: most-recently-used, then most-hit, ranks first.
             life = sorted(
@@ -246,10 +282,13 @@ class MemoryEngine:
 
     def build_context(
         self, query: str, limit: int = 5, scope: Optional[str] = None,
-        recency_weight: float = 0.0,
+        recency_weight: float = 0.0, graph_weight: float = 0.0,
     ) -> str:
         """Return a context block to prepend to a prompt."""
-        hits = self.recall(query, limit=limit, scope=scope, recency_weight=recency_weight)
+        hits = self.recall(
+            query, limit=limit, scope=scope,
+            recency_weight=recency_weight, graph_weight=graph_weight,
+        )
         if not hits:
             return ""
         lines = ["[Things I remember about you]"]
