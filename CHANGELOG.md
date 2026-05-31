@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.13.0]
+
+New capability (3/3): capture other libraries' LLM calls.
+
+### Added
+- **`recall.instrument()`**: makes recall a *local* OpenInference/OpenTelemetry
+  span sink — LLM calls made by LangChain, LlamaIndex, the OpenAI SDK, etc.
+  (instrumented via OpenInference) get written to `~/.recall/recall.db` as
+  traces (model, tokens, cost, latency, `kind="instrumented"`), visible in
+  `recall recent` / `stats` / `trace`. No server, no cloud — the local
+  counterpart to Phoenix/Langfuse auto-instrumentation. Best-effort enables the
+  OpenAI/LangChain instrumentors if installed. New `recall/instrument.py`
+  (`span_to_trace`, `instrument`). Requires `[otel]`.
+
 ## [0.12.0]
 
 New capability (2/3): document ingestion.

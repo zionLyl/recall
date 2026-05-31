@@ -233,6 +233,24 @@ Wire it into your MCP client config:
 Tools exposed: `remember`, `recall_search`, `list_memories`, `forget`,
 `usage_stats`. Same local SQLite store — nothing leaves your machine.
 
+## Capture your existing app's LLM calls
+
+Already using LangChain, LlamaIndex, or the OpenAI SDK? Make recall a **local
+sink** for their calls — no server, no cloud (the local counterpart to
+Phoenix/Langfuse auto-instrumentation):
+
+```python
+import recall
+recall.instrument()                     # spans now land in ~/.recall/recall.db
+
+from openinference.instrumentation.openai import OpenAIInstrumentor
+OpenAIInstrumentor().instrument()       # (recall auto-enables this if installed)
+# ...your normal OpenAI/LangChain code now shows up in `recall recent` / `stats`.
+```
+
+Needs `pip install 'zion-recall-ai[otel]'` plus whichever OpenInference
+instrumentor you use. Captured calls are tagged `kind="instrumented"`.
+
 ## Supported models (22 providers)
 
 Mix and match across clouds, Chinese providers, fast inference hosts, and local
