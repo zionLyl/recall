@@ -96,6 +96,27 @@ class Recall:
         """Memories that were valid at time `ts` (bi-temporal point-in-time)."""
         return self.store.memories_as_of(ts, scope=scope or self.scope)
 
+    def ingest(
+        self,
+        path,
+        scope: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+        max_chars: int = 500,
+        source: str = "document",
+    ) -> dict:
+        """Ingest a document into memory as searchable chunks. Returns counts."""
+        from pathlib import Path as _Path
+
+        from .ingest import chunk_text, read_file
+
+        chunks = chunk_text(read_file(path), max_chars=max_chars)
+        tag_list = list(tags or []) + [_Path(path).stem]
+        new = 0
+        for c in chunks:
+            if self.memory.remember(c, tags=tag_list, scope=scope or self.scope, source=source) is not None:
+                new += 1
+        return {"path": str(path), "chunks": len(chunks), "new": new}
+
     def recall_memories(self, query: str, limit: int = 5, scope: Optional[str] = None):
         return self.memory.recall(
             query, limit=limit, scope=scope or self.scope,

@@ -217,6 +217,30 @@ def list_memories(
 
 
 @app.command()
+def ingest(
+    path: str = typer.Argument(..., help="Path to a .txt / .md (or .pdf) file."),
+    scope: str = typer.Option(None, "--scope", help="Scope to store into (defaults to active)."),
+    tags: str = typer.Option("", "--tags", "-t", help="Extra comma-separated tags."),
+    max_chars: int = typer.Option(500, "--max-chars", help="Max characters per chunk."),
+):
+    """Ingest a document into searchable memory (chunked; 100% local)."""
+    r = _r()
+    tag_list = [t for t in tags.split(",") if t.strip()]
+    try:
+        res = r.ingest(path, scope=scope, tags=tag_list, max_chars=max_chars)
+    except (FileNotFoundError, RuntimeError) as e:
+        console.print(f"[red]{e}[/red]", markup=False)
+        r.close()
+        raise typer.Exit(1)
+    from rich.markup import escape
+    console.print(
+        f"[green]✓[/green] Ingested {res['new']}/{res['chunks']} chunk(s) from "
+        f"{escape(res['path'])} into '{escape(scope or r.scope)}'"
+    )
+    r.close()
+
+
+@app.command()
 def show(memory_id: int = typer.Argument(..., help="Memory ID to inspect.")):
     """Show a memory's full detail, including provenance (the chat it came from)."""
     r = _r()

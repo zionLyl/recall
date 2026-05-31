@@ -301,6 +301,7 @@ recall import my-brain.json
 | `recall init` | Guided first-time setup |
 | `recall doctor` | Show which providers have keys |
 | `recall add "..." [--tags a,b] [--scope s]` | Store a memory |
+| `recall ingest <file.md/.txt/.pdf>` | Ingest a document into searchable memory |
 | `recall search "..." [--all]` | Semantic (or keyword) search |
 | `recall list [--all] [--at WHEN]` | List memories (active, or valid as-of a past time) |
 | `recall show <id>` | Inspect a memory + its provenance (source chat) |

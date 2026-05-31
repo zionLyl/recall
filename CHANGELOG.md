@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.12.0]
+
+New capability (2/3): document ingestion.
+
+### Added
+- **`recall ingest <file>`**: read a `.txt` / `.md` (or `.pdf` with the `[pdf]`
+  extra), split it into reasonably-sized chunks, and store each as a searchable
+  memory tagged with the filename — so `recall search` and chat memory-injection
+  cover your notes/docs. 100% local and deterministic (no LLM). Dedupes on
+  re-ingest. `recall/ingest.py` (`chunk_text`, `read_file`) + `Recall.ingest`.
+
 ## [0.11.0]
 
 New capability (1/3): bi-temporal memory.
