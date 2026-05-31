@@ -22,7 +22,7 @@ def _tmp_recall(monkeypatch) -> Recall:
 
 class FakeAdapter(Adapter):
     provider = "fake"
-    def chat(self, prompt, system=None):
+    def chat(self, prompt, system=None, history=None):
         return ChatResult("ok", 5, 2, self.model, self.provider)
 
 

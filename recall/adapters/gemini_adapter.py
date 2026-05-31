@@ -25,6 +25,15 @@ class GeminiAdapter(Adapter):
         return genai.GenerativeModel(model_name=self.model, system_instruction=system or None)
 
     @staticmethod
+    def _contents(prompt: str, history: list[dict] | None):
+        out = []
+        for turn in history or []:
+            role = "model" if turn["role"] == "assistant" else "user"
+            out.append({"role": role, "parts": [turn["content"]]})
+        out.append({"role": "user", "parts": [prompt]})
+        return out
+
+    @staticmethod
     def _usage(resp) -> tuple[int, int]:
         usage = getattr(resp, "usage_metadata", None)
         if usage is None:
@@ -34,9 +43,10 @@ class GeminiAdapter(Adapter):
             getattr(usage, "candidates_token_count", 0) or 0,
         )
 
-    def chat(self, prompt: str, system: str | None = None) -> ChatResult:
+    def chat(self, prompt: str, system: str | None = None,
+             history: list[dict] | None = None) -> ChatResult:
         model = self._model(system)
-        resp = model.generate_content(prompt)
+        resp = model.generate_content(self._contents(prompt, history))
         text = resp.text or ""
         in_tok, out_tok = self._usage(resp)
         return ChatResult(
@@ -44,9 +54,10 @@ class GeminiAdapter(Adapter):
             model=self.model, provider=self.provider,
         )
 
-    def stream(self, prompt: str, system: str | None = None) -> Iterator[str]:
+    def stream(self, prompt: str, system: str | None = None,
+               history: list[dict] | None = None) -> Iterator[str]:
         model = self._model(system)
-        resp = model.generate_content(prompt, stream=True)
+        resp = model.generate_content(self._contents(prompt, history), stream=True)
         parts: list[str] = []
         for chunk in resp:
             piece = getattr(chunk, "text", "") or ""

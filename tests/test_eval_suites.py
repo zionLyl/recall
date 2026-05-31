@@ -77,7 +77,7 @@ def test_stats_includes_eval_summary(monkeypatch):
 # ---- auto-eval after chat ------------------------------------------------
 class FakeAdapter(Adapter):
     provider = "fake"
-    def chat(self, prompt, system=None):
+    def chat(self, prompt, system=None, history=None):
         return ChatResult("the capital is Paris", 5, 4, self.model, self.provider)
 
 

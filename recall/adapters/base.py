@@ -32,11 +32,20 @@ class Adapter:
         # final token usage after consuming the chunks.
         self.last_result: Optional[ChatResult] = None
 
-    def chat(self, prompt: str, system: str | None = None) -> ChatResult:
+    def chat(
+        self, prompt: str, system: str | None = None,
+        history: list[dict] | None = None,
+    ) -> ChatResult:
         raise NotImplementedError
 
-    def stream(self, prompt: str, system: str | None = None) -> Iterator[str]:
+    def stream(
+        self, prompt: str, system: str | None = None,
+        history: list[dict] | None = None,
+    ) -> Iterator[str]:
         """Yield text chunks as they arrive.
+
+        ``history`` is an optional list of prior turns as ``{"role", "content"}``
+        dicts (roles ``user`` / ``assistant``), enabling multi-turn chat.
 
         After the generator is fully consumed, ``self.last_result`` holds a
         ``ChatResult`` with the final token counts.
@@ -46,7 +55,7 @@ class Adapter:
         even if its backend doesn't — native adapters override this for true
         token-by-token output.
         """
-        result = self.chat(prompt, system=system)
+        result = self.chat(prompt, system=system, history=history)
         self.last_result = result
         if result.text:
             yield result.text

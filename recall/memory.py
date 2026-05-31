@@ -23,6 +23,13 @@ def _get_model():
         from sentence_transformers import SentenceTransformer
     except ImportError:
         return None
+    # One-time heads-up: the first load downloads ~80MB and can take a moment.
+    import sys
+    print(
+        "recall: loading the embedding model for semantic search "
+        "(first run may download ~80MB)…",
+        file=sys.stderr, flush=True,
+    )
     # Small, fast, good enough for local memory recall.
     _MODEL = SentenceTransformer("all-MiniLM-L6-v2")
     return _MODEL

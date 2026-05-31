@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.7.0]
+
+Usability & onboarding polish — informed by a competitive scan of how peers
+(simonw/llm, Jan, Phoenix, mem0, …) handle ease-of-adoption.
+
+### Added
+- **Interactive chat REPL**: bare `recall chat` (no prompt) drops into a
+  multi-turn conversation loop — memory injected + auto-captured each turn,
+  cost traced, `/exit` or Ctrl-D to quit. Matches `llm chat`'s ergonomics.
+- **Multi-turn conversation history**: adapters and `Recall.chat/stream` accept
+  a `history` of prior turns, so chats are no longer single-shot. OpenAI,
+  Anthropic, and Gemini adapters all thread it natively.
+- **Zero-key local default**: `recall init` now detects a running Ollama
+  (localhost:11434) and offers it as the default provider — no API key needed.
+
+### Changed
+- **Onboarding**: README leads with `pipx install 'recall-ai[all]'` (and `uv tool
+  install`); the quickstart's first chat command now installs a working provider
+  extra instead of failing on the base install.
+- First semantic search prints a one-time "loading embedding model (~80MB)"
+  notice to stderr instead of hanging silently.
+
 ## [0.6.0]
 
 The rest of the roadmap — extensibility, interop, auditing, and eval workflow.

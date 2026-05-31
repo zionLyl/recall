@@ -23,19 +23,21 @@ class AnthropicAdapter(Adapter):
         )
         return anthropic.Anthropic(api_key=api_key, base_url=self.base_url)
 
-    def _kwargs(self, prompt: str, system: str | None) -> dict:
-        kwargs = {
-            "model": self.model,
-            "max_tokens": 1024,
-            "messages": [{"role": "user", "content": prompt}],
-        }
+    def _kwargs(self, prompt: str, system: str | None,
+                history: list[dict] | None = None) -> dict:
+        messages = [
+            {"role": t["role"], "content": t["content"]} for t in (history or [])
+        ]
+        messages.append({"role": "user", "content": prompt})
+        kwargs = {"model": self.model, "max_tokens": 1024, "messages": messages}
         if system:
             kwargs["system"] = system
         return kwargs
 
-    def chat(self, prompt: str, system: str | None = None) -> ChatResult:
+    def chat(self, prompt: str, system: str | None = None,
+             history: list[dict] | None = None) -> ChatResult:
         client = self._client()
-        resp = client.messages.create(**self._kwargs(prompt, system))
+        resp = client.messages.create(**self._kwargs(prompt, system, history))
         text = "".join(
             block.text for block in resp.content if getattr(block, "type", "") == "text"
         )
@@ -47,11 +49,12 @@ class AnthropicAdapter(Adapter):
             provider=self.provider,
         )
 
-    def stream(self, prompt: str, system: str | None = None) -> Iterator[str]:
+    def stream(self, prompt: str, system: str | None = None,
+               history: list[dict] | None = None) -> Iterator[str]:
         client = self._client()
         parts: list[str] = []
         in_tok = out_tok = 0
-        with client.messages.stream(**self._kwargs(prompt, system)) as stream:
+        with client.messages.stream(**self._kwargs(prompt, system, history)) as stream:
             for chunk in stream.text_stream:
                 parts.append(chunk)
                 yield chunk

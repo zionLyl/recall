@@ -50,17 +50,21 @@ DeepSeek to Qwen — your memory and your bill follow you.
 ## Quickstart (30 seconds)
 
 ```bash
-pip install recall-ai            # base (keyword memory + tracing)
-# optional extras:
-#   pip install 'recall-ai[embeddings]'  # semantic memory search
-#   pip install 'recall-ai[openai]'      # GPT / DeepSeek / Qwen
+# Recommended: isolated CLI install with everything wired up
+pipx install 'recall-ai[all]'        # or: uv tool install 'recall-ai[all]'
+
+# Or pick what you need (base = keyword memory + tracing, no heavy deps):
+pip install 'recall-ai[openai]'      # GPT / DeepSeek / Qwen / OpenAI-compatible
 #   pip install 'recall-ai[anthropic]'   # Claude
+#   pip install 'recall-ai[gemini]'      # Gemini
+#   pip install 'recall-ai[embeddings]'  # semantic memory search (downloads a model)
 #   pip install 'recall-ai[dashboard]'   # web dashboard
 #   pip install 'recall-ai[mcp]'         # MCP server
-#   pip install 'recall-ai[all]'         # everything
+#   pip install 'recall-ai[otel]'        # OpenTelemetry export
+#   pip install recall-ai                # base only (keyword + tracing)
 
 # not on PyPI yet? install straight from source:
-#   pip install 'git+https://github.com/zionLyl/recall.git#egg=recall-ai[all]'
+#   pipx install 'git+https://github.com/zionLyl/recall.git#egg=recall-ai[all]'
 ```
 
 ```bash
@@ -78,6 +82,9 @@ recall chat openai gpt-4o-mini "How should you reply to me?"
 
 # with defaults configured, just:
 recall chat "what do I work on?"
+
+# or drop into an interactive, multi-turn chat (memory + tracing on):
+recall chat
 
 # 3. See exactly what you spent (and your budget)
 recall stats
@@ -132,9 +139,13 @@ usual cost/latency footer.
 
 ```bash
 recall chat "draft a haiku about memory"   # streams token-by-token
+recall chat                                # interactive multi-turn REPL
 recall chat --no-stream "..."              # wait for the full reply instead
 recall config set stream false             # make non-streaming the default
 ```
+
+In the REPL each turn keeps the in-session conversation history *and* your
+long-term memories are injected — type `/exit` or Ctrl-D to leave.
 
 From the library, pass an `on_token` callback; you still get the full outcome:
 
@@ -277,6 +288,7 @@ recall import my-brain.json
 | `recall graph [entity] [--add "s\|p\|o"]` | View / add entity relationships |
 | `recall scope [name]` | Switch / list scopes |
 | `recall chat [provider model] "..." [-T tmpl -V k=v] [--no-stream]` | Chat with memory + tracing + auto-memory |
+| `recall chat` | Interactive multi-turn chat (REPL) |
 | `recall stats` | Tokens, cost & budget overview |
 | `recall recent` | Recent model calls (with trace IDs) |
 | `recall trace` | Recent turns as call trees |

@@ -8,7 +8,7 @@ class MyAdapter(Adapter):
     provider = "myprov"
     BASE_URL = "https://example.test/v1"
     KEY_ENV = "MYPROV_API_KEY"
-    def chat(self, prompt, system=None):
+    def chat(self, prompt, system=None, history=None):
         return ChatResult("hi", 1, 1, self.model, self.provider)
 
 

@@ -364,6 +364,7 @@ class Recall:
         scope: Optional[str] = None,
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
+        history: Optional[list] = None,
     ) -> ChatOutcome:
         provider, model, scope, memory_limit = self._resolve(
             provider, model, scope, memory_limit
@@ -373,7 +374,7 @@ class Recall:
         adapter = get_adapter(provider, model, api_key=api_key, base_url=base_url)
 
         start = time.time()
-        result = adapter.chat(prompt, system=final_system)
+        result = adapter.chat(prompt, system=final_system, history=history)
         latency_ms = int((time.time() - start) * 1000)
 
         return self._finalize(
@@ -395,6 +396,7 @@ class Recall:
         scope: Optional[str] = None,
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
+        history: Optional[list] = None,
     ) -> ChatOutcome:
         """Like ``chat()`` but streams the reply token-by-token.
 
@@ -410,7 +412,7 @@ class Recall:
 
         start = time.time()
         parts: list[str] = []
-        for chunk in adapter.stream(prompt, system=final_system):
+        for chunk in adapter.stream(prompt, system=final_system, history=history):
             parts.append(chunk)
             if on_token is not None:
                 on_token(chunk)

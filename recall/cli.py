@@ -47,6 +47,16 @@ def _r() -> Recall:
     return Recall()
 
 
+def _ollama_running(host: str = "localhost", port: int = 11434) -> bool:
+    """Quick, non-blocking check for a local Ollama server (zero-key default)."""
+    import socket
+    try:
+        with socket.create_connection((host, port), timeout=0.3):
+            return True
+    except OSError:
+        return False
+
+
 # ---- setup --------------------------------------------------------------
 @app.command()
 def init():
@@ -55,15 +65,25 @@ def init():
     console.print("[bold]🧠 recall setup[/bold]\n")
 
     available = [p for p in sorted(REGISTRY) if os.environ.get(KEY_ENV.get(p, ""))]
+    ollama = _ollama_running()
     if available:
         console.print(f"Detected API keys for: [green]{', '.join(available)}[/green]")
-    else:
-        console.print("[yellow]No provider API keys detected in env.[/yellow] "
-                      "Set e.g. OPENAI_API_KEY, then re-run, or use local ollama.")
+    if ollama:
+        console.print("Detected a running [green]Ollama[/green] at localhost:11434 "
+                      "(local, no API key needed).")
+    if not available and not ollama:
+        console.print("[yellow]No provider API keys or local Ollama detected.[/yellow] "
+                      "Set e.g. OPENAI_API_KEY, or run Ollama, then re-run.")
 
-    default = available[0] if available else "openai"
-    provider = typer.prompt("Default provider", default=cfg.default_provider or default)
-    model = typer.prompt("Default model", default=cfg.default_model or "gpt-4o-mini")
+    # Prefer a key'd cloud provider; else local Ollama; else OpenAI as a hint.
+    if available:
+        default_provider, default_model = available[0], "gpt-4o-mini"
+    elif ollama:
+        default_provider, default_model = "ollama", "llama3"
+    else:
+        default_provider, default_model = "openai", "gpt-4o-mini"
+    provider = typer.prompt("Default provider", default=cfg.default_provider or default_provider)
+    model = typer.prompt("Default model", default=cfg.default_model or default_model)
     budget = typer.prompt("Daily budget USD (0 = none)", default=str(cfg.daily_budget_usd))
 
     cfg.default_provider = provider
@@ -348,6 +368,70 @@ def scope(name: str = typer.Argument(None, help="Scope to switch to. Omit to lis
 
 
 # ---- chat ---------------------------------------------------------------
+def _print_chat_meta(out) -> None:
+    console.print(
+        f"[dim]— {out.model} · {out.input_tokens}+{out.output_tokens} tok · "
+        f"${out.cost_usd:.4f} · {out.latency_ms}ms[/dim]"
+    )
+    if out.auto_remembered:
+        console.print(f"[dim]🤖 remembered: {'; '.join(out.auto_remembered)}[/dim]", markup=False)
+    if out.graph_added:
+        console.print(f"[dim]🕸 +{out.graph_added} relation(s)[/dim]")
+    if out.budget_warning:
+        console.print(f"[bold yellow]⚠ {out.budget_warning}[/bold yellow]")
+
+
+def _send_chat(r, provider, model, prompt, system, use_memory, auto, use_stream, history=None):
+    """Send one turn; print the reply (streamed or whole). Returns the outcome,
+    or None on error (already reported)."""
+    try:
+        if use_stream:
+            out = r.stream(
+                provider, model, prompt,
+                on_token=lambda t: typer.echo(t, nl=False),
+                system=system, use_memory=use_memory, auto_memory=auto, history=history,
+            )
+            typer.echo("")
+        else:
+            out = r.chat(
+                provider, model, prompt, system=system,
+                use_memory=use_memory, auto_memory=auto, history=history,
+            )
+            console.print(out.text, markup=False)
+        return out
+    except Exception as e:  # noqa: BLE001
+        from rich.markup import escape
+        console.print(f"[red]Error:[/red] {escape(str(e))}")
+        return None
+
+
+def _chat_repl(r, provider, model, system, use_memory, auto, use_stream) -> None:
+    """Interactive multi-turn chat loop over the configured model. Memory is
+    injected + auto-captured each turn; conversation history is kept in-session."""
+    console.print(
+        "[dim]Interactive chat — memory + tracing on. /exit or Ctrl-D to quit.[/dim]"
+    )
+    history: list[dict] = []
+    while True:
+        try:
+            line = console.input("[bold cyan]you ›[/bold cyan] ").strip()
+        except (EOFError, KeyboardInterrupt):
+            console.print()
+            break
+        if not line:
+            continue
+        if line in ("/exit", "/quit"):
+            break
+        out = _send_chat(r, provider, model, line, system, use_memory, auto, use_stream, history)
+        if out is None:
+            if not history:   # first turn failed (e.g. no provider/model) → stop
+                break
+            continue
+        _print_chat_meta(out)
+        history.append({"role": "user", "content": line})
+        history.append({"role": "assistant", "content": out.text})
+
+
 @app.command()
 def chat(
     arg1: str = typer.Argument(None, help="Provider, OR the prompt if defaults are set."),
@@ -367,6 +451,7 @@ def chat(
       recall chat "prompt"                  (uses configured defaults)
     """
     r = _r()
+    repl = False
     if template is not None:
         # Template supplies the prompt; positionals (if any) are provider/model.
         from .prompts import parse_vars
@@ -377,9 +462,8 @@ def chat(
             raise typer.Exit(1)
         provider, model = (arg1, arg2) if arg2 is not None else (None, None)
     elif arg1 is None:
-        console.print("[red]Provide a prompt (or --template NAME).[/red]")
-        r.close()
-        raise typer.Exit(1)
+        # No prompt → drop into an interactive REPL using configured defaults.
+        provider, model, prompt, repl = None, None, None, True
     # Flexible argument parsing.
     elif arg2 is None and arg3 is None:
         provider, model, prompt = None, None, arg1
@@ -395,36 +479,16 @@ def chat(
 
     use_stream = r.config.stream if stream is None else stream
 
-    try:
-        if use_stream:
-            # Write chunks straight to stdout (markup-free) for live typing.
-            out = r.stream(
-                provider, model, prompt,
-                on_token=lambda t: (typer.echo(t, nl=False)),
-                system=system, use_memory=not no_memory,
-                auto_memory=not no_auto,
-            )
-            typer.echo("")  # newline after the streamed reply
-        else:
-            out = r.chat(
-                provider, model, prompt,
-                system=system, use_memory=not no_memory,
-                auto_memory=not no_auto,
-            )
-            console.print(out.text, markup=False)
-    except Exception as e:  # noqa: BLE001
-        console.print(f"[red]Error:[/red] {e}")
+    if repl:
+        _chat_repl(r, provider, model, system, not no_memory, not no_auto, use_stream)
+        r.close()
+        return
+
+    out = _send_chat(r, provider, model, prompt, system, not no_memory, not no_auto, use_stream)
+    if out is None:
         r.close()
         raise typer.Exit(1)
-
-    meta = f"[dim]— {out.model} · {out.input_tokens}+{out.output_tokens} tok · ${out.cost_usd:.4f} · {out.latency_ms}ms[/dim]"
-    console.print(meta)
-    if out.auto_remembered:
-        console.print(f"[dim]🤖 remembered: {'; '.join(out.auto_remembered)}[/dim]", markup=False)
-    if out.graph_added:
-        console.print(f"[dim]🕸 +{out.graph_added} relation(s)[/dim]")
-    if out.budget_warning:
-        console.print(f"[bold yellow]⚠ {out.budget_warning}[/bold yellow]")
+    _print_chat_meta(out)
     r.close()
 
 

@@ -85,9 +85,9 @@ def test_rrf_empty():
 # ---- budget hard-stop ----------------------------------------------------
 class FakeAdapter(Adapter):
     provider = "fake"
-    def chat(self, prompt, system=None):
+    def chat(self, prompt, system=None, history=None):
         return ChatResult("ok", 1, 1, self.model, self.provider)
-    def stream(self, prompt, system=None):
+    def stream(self, prompt, system=None, history=None):
         self.last_result = ChatResult("ok", 1, 1, self.model, self.provider)
         yield "ok"
 

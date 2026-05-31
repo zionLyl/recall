@@ -34,7 +34,7 @@ def test_manual_memory_has_no_source():
 
 class FakeAdapter(Adapter):
     provider = "fake"
-    def chat(self, prompt, system=None):
+    def chat(self, prompt, system=None, history=None):
         return ChatResult("ok", 5, 2, self.model, self.provider)
 
 

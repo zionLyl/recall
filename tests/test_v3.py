@@ -21,11 +21,11 @@ class FakeAdapter(Adapter):
     provider = "fake"
     REPLY = ["Hello", ", ", "world"]
 
-    def chat(self, prompt, system=None):
+    def chat(self, prompt, system=None, history=None):
         text = "".join(self.REPLY)
         return ChatResult(text, 7, 3, self.model, self.provider)
 
-    def stream(self, prompt, system=None):
+    def stream(self, prompt, system=None, history=None):
         for chunk in self.REPLY:
             yield chunk
         self.last_result = ChatResult("".join(self.REPLY), 7, 3, self.model, self.provider)
@@ -52,7 +52,7 @@ def test_default_stream_fallback_yields_whole_reply():
     # The base Adapter.stream() default wraps chat() for non-streaming backends.
     class Blocking(Adapter):
         provider = "blocking"
-        def chat(self, prompt, system=None):
+        def chat(self, prompt, system=None, history=None):
             return ChatResult("one shot", 1, 2, self.model, self.provider)
 
     a = Blocking("m")

@@ -23,17 +23,20 @@ class OpenAIAdapter(Adapter):
         )
         return OpenAI(api_key=api_key, base_url=self.base_url)
 
-    def _messages(self, prompt: str, system: str | None):
+    def _messages(self, prompt: str, system: str | None, history: list[dict] | None = None):
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
+        for turn in history or []:
+            messages.append({"role": turn["role"], "content": turn["content"]})
         messages.append({"role": "user", "content": prompt})
         return messages
 
-    def chat(self, prompt: str, system: str | None = None) -> ChatResult:
+    def chat(self, prompt: str, system: str | None = None,
+             history: list[dict] | None = None) -> ChatResult:
         client = self._client()
         resp = client.chat.completions.create(
-            model=self.model, messages=self._messages(prompt, system)
+            model=self.model, messages=self._messages(prompt, system, history)
         )
         text = resp.choices[0].message.content or ""
         usage = resp.usage
@@ -45,9 +48,10 @@ class OpenAIAdapter(Adapter):
             provider=self.provider,
         )
 
-    def stream(self, prompt: str, system: str | None = None) -> Iterator[str]:
+    def stream(self, prompt: str, system: str | None = None,
+               history: list[dict] | None = None) -> Iterator[str]:
         client = self._client()
-        messages = self._messages(prompt, system)
+        messages = self._messages(prompt, system, history)
 
         # Ask for usage in the final chunk; not all OpenAI-compatible servers
         # support stream_options, so fall back gracefully if rejected.
