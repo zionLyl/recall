@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.9.0]
+
+Robustness & scale.
+
+### Added
+- **Vectorized retrieval**: semantic ranking now uses numpy (when present) to
+  cosine-score all memories in one matrix op, with a pure-Python fallback —
+  keeping recall fast as the store grows to thousands of memories. No new
+  required dependency.
+
+### Fixed
+- **Embedding dimension safety**: stored vectors whose dimension differs from
+  the query (e.g. after switching embedding models/backends) are now skipped
+  instead of producing silently-wrong cosine scores. `_cosine` returns 0 on
+  mismatch, protecting search, near-dup suppression, and dedupe.
+
+### Changed
+- SQLite now opens in **WAL** mode (`synchronous=NORMAL`) for safer concurrent
+  reads/writes (e.g. the dashboard reading while the CLI writes).
+
 ## [0.8.0]
 
 ### Added

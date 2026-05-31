@@ -190,6 +190,13 @@ class Store:
         self.path = Path(path) if path else default_db_path()
         self.conn = sqlite3.connect(str(self.path))
         self.conn.row_factory = sqlite3.Row
+        # WAL improves concurrent read/write robustness (e.g. dashboard reading
+        # while the CLI writes). Harmless if the filesystem can't honor it.
+        try:
+            self.conn.execute("PRAGMA journal_mode=WAL")
+            self.conn.execute("PRAGMA synchronous=NORMAL")
+        except sqlite3.OperationalError:
+            pass
         self.conn.executescript(SCHEMA)
         self._migrate()
         self.fts_enabled = self._init_fts()

@@ -79,12 +79,47 @@ def _unpack(blob: bytes) -> list[float]:
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
+    # Dimension mismatch (e.g. embeddings from different models) → not comparable.
+    if len(a) != len(b):
+        return 0.0
     dot = sum(x * y for x, y in zip(a, b))
     na = sum(x * x for x in a) ** 0.5
     nb = sum(y * y for y in b) ** 0.5
     if na == 0 or nb == 0:
         return 0.0
     return dot / (na * nb)
+
+
+def _semantic_rank(qvec, rows):
+    """Score `rows` (from all_memories_with_embeddings) against `qvec` by cosine,
+    numpy-accelerated when available with a pure-Python fallback. Skips rows whose
+    embedding dimension differs from the query (e.g. after switching embedding
+    models). Returns list of (id, content, tags, created, scope, source, score)."""
+    qd = len(qvec)
+    meta, vecs = [], []
+    for mid, content, tags, blob, created, sc, src in rows:
+        if not blob:
+            continue
+        v = _unpack(blob)
+        if len(v) != qd:          # different embedding model → not comparable
+            continue
+        meta.append((mid, content, tags, created, sc, src))
+        vecs.append(v)
+    if not meta:
+        return []
+    try:
+        import numpy as np
+
+        M = np.asarray(vecs, dtype="float32")
+        q = np.asarray(qvec, dtype="float32")
+        Mn = np.linalg.norm(M, axis=1)
+        qn = float(np.linalg.norm(q))
+        denom = Mn * qn
+        sims = np.divide(M @ q, denom, out=np.zeros(len(M), dtype="float32"), where=denom > 0)
+        scores = sims.tolist()
+    except Exception:  # noqa: BLE001 — numpy missing/any failure → pure Python
+        scores = [_cosine(qvec, v) for v in vecs]
+    return [(*meta[i], scores[i]) for i in range(len(meta))]
 
 
 def _rrf(
@@ -281,16 +316,15 @@ class MemoryEngine:
                 self.store.touch_memories([m.id for m in hits])
             return hits
 
-        # Semantic ranking over all embedded memories.
+        # Semantic ranking over all embedded memories (vectorized when numpy is
+        # present; dimension-mismatched vectors are skipped).
         qvec = qvecs[0]
-        scored: list[Memory] = []
-        for mid, content, tags, blob, created, sc, src in self.store.all_memories_with_embeddings(scope=scope):
-            if not blob:
-                continue
-            score = _cosine(qvec, _unpack(blob))
-            scored.append(
-                Memory(id=mid, content=content, tags=tags, created_at=created, scope=sc, source=src, score=score)
-            )
+        ranked = _semantic_rank(qvec, self.store.all_memories_with_embeddings(scope=scope))
+        scored = [
+            Memory(id=mid, content=content, tags=tags, created_at=created,
+                   scope=sc, source=src, score=score)
+            for mid, content, tags, created, sc, src, score in ranked
+        ]
         scored.sort(key=lambda m: m.score, reverse=True)
         semantic = [m for m in scored if m.score > 0.15]
 
