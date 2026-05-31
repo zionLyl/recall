@@ -16,7 +16,7 @@ class AnthropicAdapter(Adapter):
             import anthropic
         except ImportError as e:
             raise RuntimeError(
-                "anthropic package not installed. Run: pip install 'recall-ai[anthropic]'"
+                "anthropic package not installed. Run: pip install 'zion-recall-ai[anthropic]'"
             ) from e
         api_key = self.api_key or os.environ.get("ANTHROPIC_API_KEY") or os.environ.get(
             "RECALL_API_KEY"

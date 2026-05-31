@@ -2,7 +2,7 @@
 
 Single-file FastAPI app, no build step, no external assets. Renders one HTML
 page that reads straight from the local SQLite store. Optional dependency:
-  pip install 'recall-ai[dashboard]'
+  pip install 'zion-recall-ai[dashboard]'
 """
 
 from __future__ import annotations

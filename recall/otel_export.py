@@ -7,7 +7,7 @@ or any OTLP backend, *without* recall depending on a server.
 
 Enable with `config set otel_export true`. Spans go to the OTLP endpoint in
 `OTEL_EXPORTER_OTLP_ENDPOINT` if set, otherwise the console. Requires the SDK:
-`pip install 'recall-ai[otel]'`. If it's missing or disabled, `export()` is a
+`pip install 'zion-recall-ai[otel]'`. If it's missing or disabled, `export()` is a
 no-op that returns False — it never breaks chat.
 """
 

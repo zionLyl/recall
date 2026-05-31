@@ -16,7 +16,7 @@ Usability & onboarding polish — informed by a competitive scan of how peers
   (localhost:11434) and offers it as the default provider — no API key needed.
 
 ### Changed
-- **Onboarding**: README leads with `pipx install 'recall-ai[all]'` (and `uv tool
+- **Onboarding**: README leads with `pipx install 'zion-recall-ai[all]'` (and `uv tool
   install`); the quickstart's first chat command now installs a working provider
   extra instead of failing on the base install.
 - First semantic search prints a one-time "loading embedding model (~80MB)"
@@ -35,7 +35,7 @@ The rest of the roadmap — extensibility, interop, auditing, and eval workflow.
   entry-point group. *(simonw/llm-style.)*
 - **OpenTelemetry export** (opt-in): `config otel_export true` mirrors calls as
   OpenInference LLM spans to an OTLP backend (Phoenix/Langfuse) or the console —
-  no server dependency. `pip install 'recall-ai[otel]'`.
+  no server dependency. `pip install 'zion-recall-ai[otel]'`.
 - **Eval ergonomics**: saved eval suites (`recall eval-suite save/list/rm`,
   `recall eval <id> --suite NAME`), an eval pass-rate/score summary in
   `recall stats`, and opt-in **auto-eval after chat** (`config auto_eval_suite`).
@@ -104,7 +104,7 @@ Streaming, smarter memory, and the MCP bridge.
 - **MCP server** (`recall mcp`): exposes your memory to any MCP-aware agent
   (Claude Desktop, Claude Code, Cursor, …) as tools — `remember`,
   `recall_search`, `list_memories`, `forget`, `usage_stats`. Same local SQLite
-  store, nothing leaves your machine. Install with `pip install 'recall-ai[mcp]'`.
+  store, nothing leaves your machine. Install with `pip install 'zion-recall-ai[mcp]'`.
 - **Memory editing**: `recall edit <id> "new content" [--tags ...]` updates a
   memory in place and re-embeds it. Library: `Recall.edit(...)`.
 - **Similarity merge / dedupe**: `recall dedupe [--threshold 0.9] [--all]
@@ -122,7 +122,7 @@ Streaming, smarter memory, and the MCP bridge.
   instead of only warning. *(LiteLLM-style.)*
 
 ### Fixed
-- Install hints (`recall-ai[dashboard]`, `recall-ai[mcp]`) and model output are
+- Install hints (`zion-recall-ai[dashboard]`, `zion-recall-ai[mcp]`) and model output are
   no longer mangled by Rich markup parsing.
 
 ### Packaging

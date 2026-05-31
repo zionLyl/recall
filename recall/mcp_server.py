@@ -16,7 +16,7 @@ Then point your MCP client at that command. Example client config entry:
       }
     }
 
-Requires the MCP SDK:  pip install 'recall-ai[mcp]'
+Requires the MCP SDK:  pip install 'zion-recall-ai[mcp]'
 
 Tools exposed:
   - remember(content, tags?, scope?)        store a memory
@@ -39,7 +39,7 @@ def build_server(recall: Optional[Recall] = None):
         from mcp.server.fastmcp import FastMCP
     except ImportError as e:  # pragma: no cover - depends on optional extra
         raise RuntimeError(
-            "MCP SDK not installed. Run: pip install 'recall-ai[mcp]'"
+            "MCP SDK not installed. Run: pip install 'zion-recall-ai[mcp]'"
         ) from e
 
     r = recall or Recall()

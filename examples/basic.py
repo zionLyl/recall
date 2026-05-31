@@ -1,6 +1,6 @@
 """Minimal library example.
 
-Run after: pip install 'recall-ai[openai]'  (and set OPENAI_API_KEY)
+Run after: pip install 'zion-recall-ai[openai]'  (and set OPENAI_API_KEY)
 """
 
 from recall import Recall

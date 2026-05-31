@@ -268,7 +268,7 @@ def dedupe(
     if not r.memory.has_embeddings:
         console.print(
             "[yellow]Similarity dedupe needs embeddings.[/yellow] "
-            "Install: pip install 'recall-ai[embeddings]'", markup=False,
+            "Install: pip install 'zion-recall-ai[embeddings]'", markup=False,
         )
         r.close()
         raise typer.Exit(1)
@@ -870,12 +870,12 @@ def prompt_use(
 # ---- dashboard / version ------------------------------------------------
 @app.command()
 def dashboard(port: int = typer.Option(8745, "--port", "-p")):
-    """Launch the local web dashboard (requires: pip install 'recall-ai[dashboard]')."""
+    """Launch the local web dashboard (requires: pip install 'zion-recall-ai[dashboard]')."""
     try:
         from .dashboard.server import serve
     except ImportError as e:
         console.print(f"[red]Dashboard deps missing:[/red] {e}", markup=False)
-        console.print("Install with: pip install 'recall-ai[dashboard]'", markup=False)
+        console.print("Install with: pip install 'zion-recall-ai[dashboard]'", markup=False)
         raise typer.Exit(1)
     serve(port=port)
 
@@ -887,14 +887,14 @@ def mcp():
     Wire it into an MCP client with:
       {"mcpServers": {"recall": {"command": "recall", "args": ["mcp"]}}}
 
-    Requires: pip install 'recall-ai[mcp]'
+    Requires: pip install 'zion-recall-ai[mcp]'
     """
     try:
         from .mcp_server import serve
         serve()
     except (ImportError, RuntimeError) as e:
         console.print(f"[red]MCP unavailable:[/red] {e}", markup=False)
-        console.print("Install with: pip install 'recall-ai[mcp]'", markup=False)
+        console.print("Install with: pip install 'zion-recall-ai[mcp]'", markup=False)
         raise typer.Exit(1)
 
 

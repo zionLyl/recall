@@ -16,7 +16,7 @@ class OpenAIAdapter(Adapter):
             from openai import OpenAI
         except ImportError as e:
             raise RuntimeError(
-                "openai package not installed. Run: pip install 'recall-ai[openai]'"
+                "openai package not installed. Run: pip install 'zion-recall-ai[openai]'"
             ) from e
         api_key = self.api_key or os.environ.get("OPENAI_API_KEY") or os.environ.get(
             "RECALL_API_KEY"

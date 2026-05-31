@@ -51,20 +51,20 @@ DeepSeek to Qwen — your memory and your bill follow you.
 
 ```bash
 # Recommended: isolated CLI install with everything wired up
-pipx install 'recall-ai[all]'        # or: uv tool install 'recall-ai[all]'
+pipx install 'zion-recall-ai[all]'        # or: uv tool install 'zion-recall-ai[all]'
 
 # Or pick what you need (base = keyword memory + tracing, no heavy deps):
-pip install 'recall-ai[openai]'      # GPT / DeepSeek / Qwen / OpenAI-compatible
-#   pip install 'recall-ai[anthropic]'   # Claude
-#   pip install 'recall-ai[gemini]'      # Gemini
-#   pip install 'recall-ai[embeddings]'  # semantic memory search (downloads a model)
-#   pip install 'recall-ai[dashboard]'   # web dashboard
-#   pip install 'recall-ai[mcp]'         # MCP server
-#   pip install 'recall-ai[otel]'        # OpenTelemetry export
-#   pip install recall-ai                # base only (keyword + tracing)
+pip install 'zion-recall-ai[openai]'      # GPT / DeepSeek / Qwen / OpenAI-compatible
+#   pip install 'zion-recall-ai[anthropic]'   # Claude
+#   pip install 'zion-recall-ai[gemini]'      # Gemini
+#   pip install 'zion-recall-ai[embeddings]'  # semantic memory search (downloads a model)
+#   pip install 'zion-recall-ai[dashboard]'   # web dashboard
+#   pip install 'zion-recall-ai[mcp]'         # MCP server
+#   pip install 'zion-recall-ai[otel]'        # OpenTelemetry export
+#   pip install zion-recall-ai                # base only (keyword + tracing)
 
 # not on PyPI yet? install straight from source:
-#   pipx install 'git+https://github.com/zionLyl/recall.git#egg=recall-ai[all]'
+#   pipx install 'git+https://github.com/zionLyl/recall.git#egg=zion-recall-ai[all]'
 ```
 
 ```bash
@@ -125,7 +125,7 @@ print(r.stats())         # {'calls': 1, 'cost_usd': ..., ...}
 ## Web dashboard
 
 ```bash
-pip install 'recall-ai[dashboard]'
+pip install 'zion-recall-ai[dashboard]'
 recall dashboard          # → http://127.0.0.1:8745
 ```
 
@@ -193,7 +193,7 @@ Expose your local memory to any MCP-aware client (Claude Desktop, Claude Code,
 Cursor, …) so the agent can read and write the *same* brain you use from the CLI.
 
 ```bash
-pip install 'recall-ai[mcp]'
+pip install 'zion-recall-ai[mcp]'
 recall mcp        # runs an MCP server over stdio
 ```
 
@@ -328,7 +328,7 @@ Langfuse / LiteLLM / simonw's `llm`, what it does better, and what's planned nex
 - [x] Streaming chat output
 - [x] LLM-based memory extraction (opt-in, higher recall)
 - [x] MCP server so any agent can read/write recall memory
-- [x] PyPI release (`pip install recall-ai`) — automated via tag push
+- [x] PyPI release (`pip install zion-recall-ai`) — automated via tag push
 - [x] Memory editing & merge / dedupe by similarity
 
 ## Contributing
@@ -336,7 +336,7 @@ Langfuse / LiteLLM / simonw's `llm`, what it does better, and what's planned nex
 Issues and PRs welcome. Run tests with:
 
 ```bash
-pip install 'recall-ai[dev]'
+pip install 'zion-recall-ai[dev]'
 pytest
 ```
 

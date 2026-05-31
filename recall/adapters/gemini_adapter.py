@@ -16,7 +16,7 @@ class GeminiAdapter(Adapter):
             import google.generativeai as genai
         except ImportError as e:
             raise RuntimeError(
-                "google-generativeai not installed. Run: pip install 'recall-ai[gemini]'"
+                "google-generativeai not installed. Run: pip install 'zion-recall-ai[gemini]'"
             ) from e
         api_key = self.api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get(
             "GOOGLE_API_KEY"

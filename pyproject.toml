@@ -1,5 +1,5 @@
 [project]
-name = "recall-ai"
+name = "zion-recall-ai"
 version = "0.7.0"
 description = "Your local AI brain: persistent memory + full observability for any model. Data never leaves your machine."
 readme = "README.md"
