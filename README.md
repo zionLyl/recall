@@ -3,9 +3,14 @@
 **Your local AI brain: persistent memory + full observability for any model.**
 Data never leaves your machine.
 
+[![PyPI](https://img.shields.io/pypi/v/zion-recall-ai.svg)](https://pypi.org/project/zion-recall-ai/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/python-3.9+-blue.svg)
 ![Local-first](https://img.shields.io/badge/local--first-100%25-orange.svg)
+
+```bash
+pipx install 'zion-recall-ai[all]'      # or: pip install 'zion-recall-ai[openai]'
+```
 
 ---
 
@@ -91,7 +96,7 @@ recall stats
 ```
 
 ```
-recall stats  (v0.1.0)
+recall stats
 
 Memories stored : 2
 Model calls     : 1
@@ -186,6 +191,24 @@ Editing re-embeds the memory so semantic search stays accurate. Dedupe groups
 memories whose embeddings are ≥ the threshold, keeps the earliest as canonical,
 and unions tags onto it — exact-duplicate skipping still works even without
 embeddings installed.
+
+## Semantic search without the model download
+
+By default, semantic search uses a local `sentence-transformers` model
+(`pip install 'zion-recall-ai[embeddings]'`, ~80MB on first use). If you'd rather
+not pull in PyTorch, point recall at any **OpenAI-compatible `/embeddings`
+endpoint** — e.g. a local Ollama or LM Studio you already run:
+
+```bash
+recall config set embedding_backend api
+recall config set embedding_base_url http://localhost:11434/v1   # Ollama
+recall config set embedding_model nomic-embed-text
+# cloud endpoints: also set embedding_api_key_env to the env var holding the key
+```
+
+Now `recall add` / `recall search` get semantic embeddings over HTTP — no heavy
+local dependency. If the endpoint is unreachable, recall transparently falls
+back to keyword/BM25 search.
 
 ## MCP server — plug recall into any agent
 

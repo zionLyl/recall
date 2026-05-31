@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.8.0]
+
+### Added
+- **Pluggable embedding backend**: semantic search can now use any
+  OpenAI-compatible `/embeddings` endpoint instead of the local
+  sentence-transformers model — point at a local Ollama / LM Studio (no PyTorch
+  download) or a cloud provider. Config: `embedding_backend = api`,
+  `embedding_model`, `embedding_base_url`, `embedding_api_key_env`. Falls back to
+  keyword/BM25 search if the endpoint is unreachable. Default stays `local`.
+
+### Changed
+- Published to PyPI as **`zion-recall-ai`** (`pip install zion-recall-ai`); the
+  import package and `recall` CLI command are unchanged. README gains a PyPI
+  badge + prominent install line.
+
 ## [0.7.0]
 
 Usability & onboarding polish — informed by a competitive scan of how peers

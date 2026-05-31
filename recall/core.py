@@ -24,7 +24,7 @@ from .adapters import get_adapter
 from .adapters.base import ChatResult
 from .config import Config
 from .extract import extract_memories
-from .memory import MemoryEngine
+from .memory import EmbedConfig, MemoryEngine
 from .pricing import estimate_cost
 from .store import Store, Trace
 
@@ -52,8 +52,17 @@ class ChatOutcome:
 class Recall:
     def __init__(self, db_path: Optional[Path] = None, config: Optional[Config] = None):
         self.store = Store(db_path)
-        self.memory = MemoryEngine(self.store)
         self.config = config or Config.load()
+        self.memory = MemoryEngine(self.store, embed_cfg=self._embed_cfg())
+
+    def _embed_cfg(self) -> EmbedConfig:
+        c = self.config
+        return EmbedConfig(
+            backend=getattr(c, "embedding_backend", "local") or "local",
+            model=getattr(c, "embedding_model", None),
+            base_url=getattr(c, "embedding_base_url", None),
+            api_key_env=getattr(c, "embedding_api_key_env", None),
+        )
 
     @property
     def scope(self) -> str:

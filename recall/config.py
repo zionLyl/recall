@@ -31,6 +31,10 @@ class Config:
     memory_ops: str = "append"             # "append" or "llm" (opt-in ADD/UPDATE/DELETE/NOOP conflict resolution)
     graph_extract: bool = False            # opt-in: mine (subject, predicate, object) relations from chats
     memory_inject_limit: int = 5
+    embedding_backend: str = "local"       # "local" (sentence-transformers) or "api" (OpenAI-compatible /embeddings)
+    embedding_model: Optional[str] = None  # required for api backend, e.g. "nomic-embed-text"
+    embedding_base_url: Optional[str] = None  # api backend, e.g. http://localhost:11434/v1 (Ollama)
+    embedding_api_key_env: Optional[str] = None  # env var with the key (optional; local servers need none)
     dedupe_similarity: float = 0.0         # 0 = exact-only; e.g. 0.95 suppresses near-dupes on add (needs embeddings)
     recency_weight: float = 0.0            # 0 = pure relevance; >0 blends recency/usage into retrieval ranking
     graph_weight: float = 0.0              # 0 = off; >0 blends graph-connected memories into retrieval (needs relations)

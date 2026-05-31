@@ -1,18 +1,34 @@
 """Memory engine: store, embed, and retrieve memories.
 
-Semantic search uses sentence-transformers if installed; otherwise it
-gracefully falls back to SQLite keyword search. This keeps the default install
-tiny while letting power users opt into embeddings.
+Semantic search has two embedding backends:
+  - "local" (default): a sentence-transformers model (downloads ~80MB on first
+    use). Falls back to SQLite keyword search if the package isn't installed.
+  - "api": any OpenAI-compatible /embeddings endpoint — point at a local Ollama
+    or LM Studio server for semantic search with *no* heavy PyTorch download, or
+    at a cloud provider. Configured via embedding_backend / embedding_model /
+    embedding_base_url / embedding_api_key_env.
 """
 
 from __future__ import annotations
 
+import json
+import os
 import struct
+import urllib.request
+from dataclasses import dataclass
 from typing import Optional
 
 from .store import Memory, Store
 
 _MODEL = None  # lazily loaded sentence-transformers model
+
+
+@dataclass
+class EmbedConfig:
+    backend: str = "local"            # "local" | "api"
+    model: Optional[str] = None       # required for "api"
+    base_url: Optional[str] = None    # required for "api", e.g. http://localhost:11434/v1
+    api_key_env: Optional[str] = None # env var holding the key (optional; Ollama needs none)
 
 
 def _get_model():
@@ -33,6 +49,24 @@ def _get_model():
     # Small, fast, good enough for local memory recall.
     _MODEL = SentenceTransformer("all-MiniLM-L6-v2")
     return _MODEL
+
+
+def _embed_api(texts, base_url: str, model: str, api_key: Optional[str] = None):
+    """Embed via an OpenAI-compatible /embeddings endpoint. Returns a list of
+    vectors, or None on any failure (caller falls back to keyword search)."""
+    url = base_url.rstrip("/") + "/embeddings"
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    body = json.dumps({"model": model, "input": list(texts)}).encode()
+    try:
+        req = urllib.request.Request(url, data=body, headers=headers)
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read())
+        items = sorted(data["data"], key=lambda d: d.get("index", 0))
+        return [it["embedding"] for it in items]
+    except Exception:  # noqa: BLE001 — network/parse error → degrade to keyword
+        return None
 
 
 def _pack(vec) -> bytes:
@@ -70,18 +104,32 @@ def _rrf(
 
 
 class MemoryEngine:
-    def __init__(self, store: Store):
+    def __init__(self, store: Store, embed_cfg: Optional[EmbedConfig] = None):
         self.store = store
+        self.embed_cfg = embed_cfg or EmbedConfig()
 
     @property
     def has_embeddings(self) -> bool:
+        if self.embed_cfg.backend == "api":
+            return bool(self.embed_cfg.base_url and self.embed_cfg.model)
         return _get_model() is not None
 
-    def _embed(self, text: str) -> Optional[bytes]:
+    def _encode(self, texts: list[str]) -> Optional[list[list[float]]]:
+        """Embed `texts` with the configured backend; None if unavailable."""
+        cfg = self.embed_cfg
+        if cfg.backend == "api":
+            if not (cfg.base_url and cfg.model):
+                return None
+            key = os.environ.get(cfg.api_key_env or "", "") or os.environ.get("RECALL_API_KEY", "")
+            return _embed_api(texts, cfg.base_url, cfg.model, key or None)
         model = _get_model()
         if model is None:
             return None
-        return _pack(model.encode([text])[0].tolist())
+        return [v.tolist() for v in model.encode(list(texts))]
+
+    def _embed(self, text: str) -> Optional[bytes]:
+        vecs = self._encode([text])
+        return _pack(vecs[0]) if vecs else None
 
     def remember(
         self,
@@ -225,16 +273,16 @@ class MemoryEngine:
         self, query: str, limit: int = 5, scope: Optional[str] = None,
         recency_weight: float = 0.0, graph_weight: float = 0.0, touch: bool = True,
     ) -> list[Memory]:
-        model = _get_model()
-        if model is None:
-            # No embeddings: keyword/BM25 search is all we have.
+        qvecs = self._encode([query]) if self.has_embeddings else None
+        if not qvecs:
+            # No embeddings (or backend unreachable): keyword/BM25 is all we have.
             hits = self.store.keyword_search(query, limit=limit, scope=scope)
             if touch:
                 self.store.touch_memories([m.id for m in hits])
             return hits
 
         # Semantic ranking over all embedded memories.
-        qvec = model.encode([query])[0].tolist()
+        qvec = qvecs[0]
         scored: list[Memory] = []
         for mid, content, tags, blob, created, sc, src in self.store.all_memories_with_embeddings(scope=scope):
             if not blob:
