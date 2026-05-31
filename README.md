@@ -319,6 +319,7 @@ recall import my-brain.json
 | `recall evals [--trace id]` | List eval results |
 | `recall eval-suite save/list/rm` | Manage reusable eval suites |
 | `recall pricing [model]` | Show resolved per-1M-token pricing |
+| `recall benchmark` | Reproducible retrieval/extraction quality numbers |
 | `recall models` | Supported providers |
 | `recall prompt save/list/show/use/rm` | Manage prompt templates |
 | `recall export/import <file>` | Backup / restore memories |
@@ -337,6 +338,21 @@ it — it's yours.
 - **Privacy** — your memories and prompts stay on your disk.
 - **Portability** — one file you can move, version, or sync yourself.
 - **No lock-in** — works across providers; swap models freely.
+
+## Benchmark
+
+recall ships a reproducible, key-free quality benchmark:
+
+```bash
+recall benchmark
+```
+
+It seeds a fixed, hand-labeled memory set and measures retrieval quality
+(recall@1, recall@k, precision@k, MRR) plus heuristic-extraction fact-recall —
+honestly labeling whether it ran in **semantic** or **keyword/BM25** mode.
+Keyword baseline: `recall@1 ≈ 0.50, MRR ≈ 0.69`, extraction fact-recall `1.00`
+with `0` false captures; installing `[embeddings]` (or an api backend) scores
+higher. Numbers are deterministic, so you can track them across changes.
 
 ## Roadmap
 

@@ -731,6 +731,37 @@ def suite_rm(name: str = typer.Argument(..., help="Suite name.")):
 
 
 @app.command()
+def benchmark(k: int = typer.Option(5, "--k", help="Retrieval cutoff for recall@k / precision@k.")):
+    """Run the reproducible memory-quality benchmark (retrieval + extraction).
+
+    Deterministic and key-free; reports semantic vs keyword mode honestly.
+    """
+    from .bench import run_all
+    res = run_all(k=k)
+    rt, ex = res["retrieval"], res["extraction"]
+    console.print(f"[bold]recall benchmark[/bold]  [dim](v{__version__})[/dim]\n")
+    console.print(f"Retrieval backend : [cyan]{rt['mode']}[/cyan]  "
+                  f"[dim]({rt['queries']} queries, k={rt['k']})[/dim]")
+    table = Table(title="Retrieval quality")
+    table.add_column("Metric", style="cyan")
+    table.add_column("Score", justify="right")
+    table.add_row("recall@1", f"{rt['recall_at_1']:.3f}")
+    table.add_row(f"recall@{k}", f"{rt['recall_at_k']:.3f}")
+    table.add_row(f"precision@{k}", f"{rt['precision_at_k']:.3f}")
+    table.add_row("MRR", f"{rt['mrr']:.3f}")
+    console.print(table)
+    console.print(f"Extraction        : [cyan]fact-recall {ex['fact_recall']:.3f}[/cyan] "
+                  f"[dim]({ex['cases']} cases, {ex['false_captures']} false capture(s))[/dim]")
+    console.print(
+        f"\n[dim]cite: recall@1={rt['recall_at_1']:.2f}, MRR={rt['mrr']:.2f} "
+        f"({rt['mode']}, {rt['queries']} queries)[/dim]"
+    )
+    if rt["mode"] == "keyword":
+        console.print("[dim]tip: install 'zion-recall-ai[embeddings]' (or set an api backend) "
+                      "for the semantic numbers.[/dim]", markup=False)
+
+
+@app.command()
 def models():
     """List supported providers."""
     table = Table(title=f"Supported providers ({len(REGISTRY)})")

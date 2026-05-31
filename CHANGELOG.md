@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.10.0]
+
+Credibility — reproducible quality numbers.
+
+### Added
+- **Benchmark harness** (`recall benchmark`): deterministic, key-free. Seeds a
+  fixed, hand-labeled memory set into a throwaway store and reports retrieval
+  quality — **recall@1, recall@k, precision@k, MRR** — plus a heuristic
+  extraction fact-recall / false-capture check. Honestly labels whether the run
+  used the semantic or keyword/BM25 backend, so numbers are comparable and not
+  overstated. New `recall/bench.py` (`run_retrieval_benchmark`,
+  `run_extraction_benchmark`, `run_all`). Baseline (keyword): recall@1 ≈ 0.50,
+  MRR ≈ 0.69, extraction fact-recall 1.00 with 0 false captures; semantic
+  embeddings score higher.
+
 ## [0.9.0]
 
 Robustness & scale.
