@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.11.0]
+
+New capability (1/3): bi-temporal memory.
+
+### Added
+- **Point-in-time queries**: `recall list --at <when>` shows the memories that
+  were valid at a past time — `YYYY-MM-DD`, a relative `30d`/`12h`/`45m` ago, or
+  an epoch. Includes since-forgotten memories whose validity window covers that
+  moment. `Store.memories_as_of()` / `Recall.as_of()`.
+
+### Changed
+- **Conflict-resolution UPDATE now supersedes instead of overwriting**: the old
+  fact's validity window is closed (kept as history, deactivated) and the new
+  fact is added — so "what did I know on date X?" stays answerable.
+
 ## [0.10.0]
 
 Credibility — reproducible quality numbers.

@@ -1,6 +1,6 @@
 [project]
 name = "zion-recall-ai"
-version = "0.10.0"
+version = "0.11.0"
 description = "Your local AI brain: persistent memory + full observability for any model. Data never leaves your machine."
 readme = "README.md"
 license = { text = "MIT" }

@@ -92,6 +92,10 @@ class Recall:
     def dedupe(self, scope: Optional[str] = None, threshold: float = 0.9) -> list[dict]:
         return self.memory.dedupe(scope=scope, threshold=threshold)
 
+    def as_of(self, ts: float, scope: Optional[str] = None):
+        """Memories that were valid at time `ts` (bi-temporal point-in-time)."""
+        return self.store.memories_as_of(ts, scope=scope or self.scope)
+
     def recall_memories(self, query: str, limit: int = 5, scope: Optional[str] = None):
         return self.memory.recall(
             query, limit=limit, scope=scope or self.scope,
@@ -298,7 +302,13 @@ class Recall:
         if op == "NOOP":
             return None
         if op == "UPDATE" and decision["id"] and decision["content"]:
-            if self.memory.edit(decision["id"], content=decision["content"]):
+            # Supersede, don't overwrite: close the old fact's validity window
+            # (kept as history) and add the new one, so "what did I know then?"
+            # stays answerable.
+            if self.store.get_memory(decision["id"]) and self.store.soft_delete(decision["id"]):
+                self.memory.remember(
+                    decision["content"], scope=scope, source="auto", source_trace=parent_id
+                )
                 return f"updated #{decision['id']}: {decision['content']}"
             return None
         if op == "DELETE" and decision["id"]:

@@ -355,6 +355,22 @@ class Store:
         ).fetchone()
         return self._row_to_memory(row) if row else None
 
+    def memories_as_of(self, ts: float, scope: Optional[str] = None) -> list[Memory]:
+        """Bi-temporal query: memories whose validity window covers time `ts` —
+        i.e. created at/before `ts` and not yet superseded/forgotten by then.
+        Includes memories since deactivated, so you can ask 'what did I know on
+        date X?'. Falls back to created_at when valid_from is unset (old rows)."""
+        where = ["COALESCE(valid_from, created_at) <= ?", "(valid_to IS NULL OR valid_to > ?)"]
+        params: list = [ts, ts]
+        if scope:
+            where.append("scope = ?")
+            params.append(scope)
+        rows = self.conn.execute(
+            f"SELECT * FROM memories WHERE {' AND '.join(where)} ORDER BY created_at DESC",
+            params,
+        ).fetchall()
+        return [self._row_to_memory(r) for r in rows]
+
     def update_memory(
         self,
         memory_id: int,

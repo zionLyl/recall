@@ -60,14 +60,17 @@ def test_reconcile_add(monkeypatch):
     assert len(r.store.all_memories()) == 1
 
 
-def test_reconcile_update(monkeypatch):
+def test_reconcile_update_supersedes(monkeypatch):
     r = _tmp_recall(monkeypatch)
     mid = r.remember("I live in NYC")
     _patch_decision(monkeypatch, "UPDATE", mid, "I live in Berlin")
     out = r._reconcile_capture("Actually I moved to Berlin", "default", "openai", "gpt-4o-mini", None, None)
     assert out.startswith(f"updated #{mid}")
-    assert r.store.get_memory(mid).content == "I live in Berlin"
-    assert len(r.store.all_memories()) == 1          # updated in place, not appended
+    # old fact is superseded (kept as history, deactivated), new fact is active
+    old = r.store.get_memory(mid)
+    assert old.content == "I live in NYC" and old.active == 0
+    actives = r.store.all_memories()
+    assert len(actives) == 1 and actives[0].content == "I live in Berlin"
 
 
 def test_reconcile_delete(monkeypatch):

@@ -57,6 +57,28 @@ def _ollama_running(host: str = "localhost", port: int = 11434) -> bool:
         return False
 
 
+def _parse_when(s: str) -> float:
+    """Parse a point in time: 'YYYY-MM-DD', a relative '30d'/'12h'/'45m' ago, or
+    a raw epoch. Returns a Unix timestamp."""
+    import re
+    import time as _time
+    from datetime import datetime
+
+    s = s.strip()
+    m = re.fullmatch(r"(\d+)\s*([dhm])", s)
+    if m:
+        unit = {"d": 86400, "h": 3600, "m": 60}[m.group(2)]
+        return _time.time() - int(m.group(1)) * unit
+    try:
+        return datetime.fromisoformat(s).timestamp()
+    except ValueError:
+        pass
+    try:
+        return float(s)
+    except ValueError as e:
+        raise typer.BadParameter(f"can't parse time '{s}' (use YYYY-MM-DD, '30d', or epoch)") from e
+
+
 # ---- setup --------------------------------------------------------------
 @app.command()
 def init():
@@ -161,23 +183,35 @@ def search(
 @app.command("list")
 def list_memories(
     all_scopes: bool = typer.Option(False, "--all", help="List across all scopes."),
+    at: str = typer.Option(None, "--at", help="Time-travel: memories valid at this time (YYYY-MM-DD, '30d'/'12h' ago, or epoch)."),
 ):
-    """List stored memories (active scope by default)."""
+    """List stored memories (active scope by default). With --at, show what was
+    valid at a past time (includes since-forgotten memories)."""
     r = _r()
-    mems = r.store.all_memories(scope=None if all_scopes else r.scope)
+    scope = None if all_scopes else r.scope
+    if at is not None:
+        ts = _parse_when(at)
+        mems = r.store.memories_as_of(ts, scope=scope)
+        title_suffix = f" · as of {at}"
+    else:
+        mems = r.store.all_memories(scope=scope)
+        title_suffix = "" if all_scopes else f" · scope='{r.scope}'"
     if not mems:
-        console.print(f"[yellow]No memories in '{r.scope}'. Add one: recall add \"...\"[/yellow]")
+        msg = f"No memories valid as of {at}." if at else f"No memories in '{r.scope}'. Add one: recall add \"...\""
+        console.print(f"[yellow]{msg}[/yellow]")
         r.close()
         return
-    table = Table(title=f"Memories ({len(mems)})" + ("" if all_scopes else f" · scope='{r.scope}'"))
+    table = Table(title=f"Memories ({len(mems)})" + title_suffix)
     table.add_column("ID", style="cyan", justify="right")
     table.add_column("Memory")
     table.add_column("Scope", style="blue")
     table.add_column("Src", style="dim")
     table.add_column("Tags", style="dim")
+    from rich.markup import escape
     for m in mems:
         src = "🤖" if m.source == "auto" else ""
-        table.add_row(str(m.id), m.content, m.scope, src, ", ".join(m.tags))
+        marker = "" if m.active else "[dim](past)[/dim] "
+        table.add_row(str(m.id), marker + escape(m.content), m.scope, src, ", ".join(m.tags))
     console.print(table)
     r.close()
 
