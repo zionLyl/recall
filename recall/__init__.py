@@ -3,8 +3,9 @@
 Data never leaves your machine.
 """
 
-from .core import Recall
+from .core import BudgetExceeded, Recall
 from .config import Config
+from .adapters import register as register_adapter
 
-__version__ = "0.2.0"
-__all__ = ["Recall", "Config", "__version__"]
+__version__ = "0.7.0"
+__all__ = ["Recall", "Config", "BudgetExceeded", "register_adapter", "__version__"]

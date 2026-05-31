@@ -36,11 +36,25 @@ app = typer.Typer(
 )
 config_app = typer.Typer(help="View and edit configuration.")
 app.add_typer(config_app, name="config")
+prompt_app = typer.Typer(help="Save and reuse prompt templates / fragments.")
+app.add_typer(prompt_app, name="prompt")
+suite_app = typer.Typer(help="Save and reuse eval suites.")
+app.add_typer(suite_app, name="eval-suite")
 console = Console()
 
 
 def _r() -> Recall:
     return Recall()
+
+
+def _ollama_running(host: str = "localhost", port: int = 11434) -> bool:
+    """Quick, non-blocking check for a local Ollama server (zero-key default)."""
+    import socket
+    try:
+        with socket.create_connection((host, port), timeout=0.3):
+            return True
+    except OSError:
+        return False
 
 
 # ---- setup --------------------------------------------------------------
@@ -51,15 +65,25 @@ def init():
     console.print("[bold]🧠 recall setup[/bold]\n")
 
     available = [p for p in sorted(REGISTRY) if os.environ.get(KEY_ENV.get(p, ""))]
+    ollama = _ollama_running()
     if available:
         console.print(f"Detected API keys for: [green]{', '.join(available)}[/green]")
-    else:
-        console.print("[yellow]No provider API keys detected in env.[/yellow] "
-                      "Set e.g. OPENAI_API_KEY, then re-run, or use local ollama.")
+    if ollama:
+        console.print("Detected a running [green]Ollama[/green] at localhost:11434 "
+                      "(local, no API key needed).")
+    if not available and not ollama:
+        console.print("[yellow]No provider API keys or local Ollama detected.[/yellow] "
+                      "Set e.g. OPENAI_API_KEY, or run Ollama, then re-run.")
 
-    default = available[0] if available else "openai"
-    provider = typer.prompt("Default provider", default=cfg.default_provider or default)
-    model = typer.prompt("Default model", default=cfg.default_model or "gpt-4o-mini")
+    # Prefer a key'd cloud provider; else local Ollama; else OpenAI as a hint.
+    if available:
+        default_provider, default_model = available[0], "gpt-4o-mini"
+    elif ollama:
+        default_provider, default_model = "ollama", "llama3"
+    else:
+        default_provider, default_model = "openai", "gpt-4o-mini"
+    provider = typer.prompt("Default provider", default=cfg.default_provider or default_provider)
+    model = typer.prompt("Default model", default=cfg.default_model or default_model)
     budget = typer.prompt("Daily budget USD (0 = none)", default=str(cfg.daily_budget_usd))
 
     cfg.default_provider = provider
@@ -159,11 +183,164 @@ def list_memories(
 
 
 @app.command()
-def forget(memory_id: int = typer.Argument(..., help="Memory ID to delete.")):
-    """Delete a memory by ID."""
+def show(memory_id: int = typer.Argument(..., help="Memory ID to inspect.")):
+    """Show a memory's full detail, including provenance (the chat it came from)."""
     r = _r()
-    ok = r.store.delete_memory(memory_id)
-    console.print(f"[green]✓[/green] Forgot #{memory_id}" if ok else f"[red]✗[/red] No memory #{memory_id}")
+    m = r.store.get_memory(memory_id)
+    if m is None:
+        console.print(f"[red]✗[/red] No memory #{memory_id}")
+        r.close()
+        raise typer.Exit(1)
+    console.print(f"[bold]#{m.id}[/bold] [dim]({m.scope})[/dim]")
+    console.print(m.content, markup=False)
+    console.print(f"[dim]source={m.source} · tags={', '.join(m.tags) or '—'} · "
+                  f"hits={m.hit_count} · active={bool(m.active)}[/dim]")
+    if m.source_trace:
+        tr = r.store.get_trace(m.source_trace)
+        if tr:
+            snippet = (tr.get("prompt") or "")[:200]
+            console.print(f"[dim]captured from call #{m.source_trace} "
+                          f"({tr.get('model','?')}):[/dim]")
+            console.print(f"  [dim]{snippet}[/dim]", markup=False)
+    r.close()
+
+
+@app.command()
+def forget(
+    memory_id: int = typer.Argument(..., help="Memory ID to delete."),
+    soft: bool = typer.Option(False, "--soft", help="Soft-forget (deactivate, keep history) instead of hard delete."),
+):
+    """Delete a memory by ID (hard delete, or --soft to keep history)."""
+    r = _r()
+    ok = r.forget(memory_id, soft=soft)
+    verb = "Soft-forgot" if soft else "Forgot"
+    console.print(f"[green]✓[/green] {verb} #{memory_id}" if ok else f"[red]✗[/red] No memory #{memory_id}")
+    r.close()
+
+
+@app.command()
+def prune(
+    older_than: float = typer.Option(None, "--older-than", help="Soft-forget memories older than N days."),
+    unused: bool = typer.Option(False, "--unused", help="Restrict to memories never retrieved (hit_count = 0)."),
+    all_scopes: bool = typer.Option(False, "--all", help="Prune across all scopes."),
+):
+    """Soft-forget stale memories (deactivate, keeping history)."""
+    r = _r()
+    if older_than is None and not unused:
+        console.print("[yellow]Specify --older-than DAYS and/or --unused.[/yellow]")
+        r.close()
+        raise typer.Exit(1)
+    n = r.prune(scope=None if all_scopes else r.scope, older_than_days=older_than, unused=unused)
+    console.print(f"[green]✓[/green] Soft-forgot {n} memory/-ies.")
+    r.close()
+
+
+@app.command()
+def edit(
+    memory_id: int = typer.Argument(..., help="Memory ID to edit."),
+    content: str = typer.Argument(None, help="New content (omit to only change tags)."),
+    tags: str = typer.Option(None, "--tags", "-t", help="Replace tags (comma-separated)."),
+):
+    """Edit a memory's content and/or tags (re-embeds if content changed)."""
+    r = _r()
+    if content is None and tags is None:
+        console.print("[yellow]Nothing to change — pass new content and/or --tags.[/yellow]")
+        r.close()
+        raise typer.Exit(1)
+    if r.store.get_memory(memory_id) is None:
+        console.print(f"[red]✗[/red] No memory #{memory_id}")
+        r.close()
+        raise typer.Exit(1)
+    tag_list = [t for t in tags.split(",") if t.strip()] if tags is not None else None
+    ok = r.edit(memory_id, content=content, tags=tag_list)
+    console.print(f"[green]✓[/green] Updated #{memory_id}" if ok else "[red]✗[/red] No change")
+    r.close()
+
+
+@app.command()
+def dedupe(
+    threshold: float = typer.Option(0.9, "--threshold", "-th", help="Cosine similarity to merge (0–1)."),
+    all_scopes: bool = typer.Option(False, "--all", help="Dedupe across all scopes."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would merge without changing anything."),
+):
+    """Merge near-duplicate memories by similarity (keeps the earliest, unions tags)."""
+    r = _r()
+    if not r.memory.has_embeddings:
+        console.print(
+            "[yellow]Similarity dedupe needs embeddings.[/yellow] "
+            "Install: pip install 'recall-ai[embeddings]'", markup=False,
+        )
+        r.close()
+        raise typer.Exit(1)
+    scope = None if all_scopes else r.scope
+    if dry_run:
+        # Preview: run the same clustering but don't persist.
+        from .memory import _cosine, _unpack
+        rows = r.store.all_memories_with_embeddings(scope=scope)
+        items = [(mid, c, _unpack(b), sc) for mid, c, _t, b, _cr, sc, _s in rows if b]
+        items.sort(key=lambda x: x[0])
+        seen, groups = set(), []
+        for i, (mid, c, vec, sc) in enumerate(items):
+            if mid in seen:
+                continue
+            dupes = [(m2, c2) for m2, c2, v2, sc2 in items[i + 1:]
+                     if m2 not in seen and sc2 == sc and _cosine(vec, v2) >= threshold]
+            if dupes:
+                for m2, _ in dupes:
+                    seen.add(m2)
+                groups.append((mid, c, dupes))
+        if not groups:
+            console.print("[green]No near-duplicates found.[/green]")
+        else:
+            for kept, kept_c, dupes in groups:
+                console.print(f"[cyan]keep #{kept}[/cyan] {kept_c}", markup=False)
+                for m2, c2 in dupes:
+                    console.print(f"  [dim]merge #{m2}[/dim] {c2}", markup=False)
+            console.print(f"\n[yellow]Dry run — {sum(len(d) for _,_,d in groups)} "
+                          f"memories would be merged. Re-run without --dry-run.[/yellow]")
+        r.close()
+        return
+    merges = r.dedupe(scope=scope, threshold=threshold)
+    removed = sum(len(m["removed"]) for m in merges)
+    if not merges:
+        console.print("[green]No near-duplicates found.[/green]")
+    else:
+        console.print(f"[green]✓[/green] Merged {removed} duplicate(s) into {len(merges)} memory/-ies.")
+    r.close()
+
+
+@app.command()
+def graph(
+    entity: str = typer.Argument(None, help="Entity to query (omit to list all relations)."),
+    add: str = typer.Option(None, "--add", help='Add a triple: "subject|predicate|object".'),
+):
+    """View or add entity relationships (graph-lite). Mined from chats when
+    `config set graph_extract true`."""
+    r = _r()
+    if add:
+        parts = [p.strip() for p in add.split("|")]
+        if len(parts) != 3:
+            console.print('[red]Use --add "subject|predicate|object"[/red]')
+            r.close()
+            raise typer.Exit(1)
+        rid = r.add_relation(*parts)
+        console.print(f"[green]✓[/green] Added relation #{rid}" if rid else "[yellow]Already known.[/yellow]")
+        r.close()
+        return
+    rels = r.graph(entity)
+    if not rels:
+        msg = f"No relations for '{entity}'." if entity else "No relations yet."
+        console.print(f"[yellow]{msg}[/yellow]")
+        r.close()
+        return
+    title = f"Relations · {entity}" if entity else f"Relations ({len(rels)}) · scope='{r.scope}'"
+    table = Table(title=title)
+    table.add_column("Subject", style="cyan")
+    table.add_column("Predicate", style="magenta")
+    table.add_column("Object", style="cyan")
+    for rel in rels:
+        table.add_row(rel["subject"], rel["predicate"], rel["object"])
+    console.print(table)
     r.close()
 
 
@@ -191,14 +368,81 @@ def scope(name: str = typer.Argument(None, help="Scope to switch to. Omit to lis
 
 
 # ---- chat ---------------------------------------------------------------
+def _print_chat_meta(out) -> None:
+    console.print(
+        f"[dim]— {out.model} · {out.input_tokens}+{out.output_tokens} tok · "
+        f"${out.cost_usd:.4f} · {out.latency_ms}ms[/dim]"
+    )
+    if out.auto_remembered:
+        console.print(f"[dim]🤖 remembered: {'; '.join(out.auto_remembered)}[/dim]", markup=False)
+    if out.graph_added:
+        console.print(f"[dim]🕸 +{out.graph_added} relation(s)[/dim]")
+    if out.budget_warning:
+        console.print(f"[bold yellow]⚠ {out.budget_warning}[/bold yellow]")
+
+
+def _send_chat(r, provider, model, prompt, system, use_memory, auto, use_stream, history=None):
+    """Send one turn; print the reply (streamed or whole). Returns the outcome,
+    or None on error (already reported)."""
+    try:
+        if use_stream:
+            out = r.stream(
+                provider, model, prompt,
+                on_token=lambda t: typer.echo(t, nl=False),
+                system=system, use_memory=use_memory, auto_memory=auto, history=history,
+            )
+            typer.echo("")
+        else:
+            out = r.chat(
+                provider, model, prompt, system=system,
+                use_memory=use_memory, auto_memory=auto, history=history,
+            )
+            console.print(out.text, markup=False)
+        return out
+    except Exception as e:  # noqa: BLE001
+        from rich.markup import escape
+        console.print(f"[red]Error:[/red] {escape(str(e))}")
+        return None
+
+
+def _chat_repl(r, provider, model, system, use_memory, auto, use_stream) -> None:
+    """Interactive multi-turn chat loop over the configured model. Memory is
+    injected + auto-captured each turn; conversation history is kept in-session."""
+    console.print(
+        "[dim]Interactive chat — memory + tracing on. /exit or Ctrl-D to quit.[/dim]"
+    )
+    history: list[dict] = []
+    while True:
+        try:
+            line = console.input("[bold cyan]you ›[/bold cyan] ").strip()
+        except (EOFError, KeyboardInterrupt):
+            console.print()
+            break
+        if not line:
+            continue
+        if line in ("/exit", "/quit"):
+            break
+        out = _send_chat(r, provider, model, line, system, use_memory, auto, use_stream, history)
+        if out is None:
+            if not history:   # first turn failed (e.g. no provider/model) → stop
+                break
+            continue
+        _print_chat_meta(out)
+        history.append({"role": "user", "content": line})
+        history.append({"role": "assistant", "content": out.text})
+
+
 @app.command()
 def chat(
-    arg1: str = typer.Argument(..., help="Provider, OR the prompt if defaults are set."),
+    arg1: str = typer.Argument(None, help="Provider, OR the prompt if defaults are set."),
     arg2: str = typer.Argument(None, help="Model (when provider given)."),
     arg3: str = typer.Argument(None, help="Prompt (when provider+model given)."),
     system: str = typer.Option(None, "--system", "-s"),
     no_memory: bool = typer.Option(False, "--no-memory", help="Skip memory injection."),
     no_auto: bool = typer.Option(False, "--no-auto", help="Skip auto-memory capture."),
+    stream: bool = typer.Option(None, "--stream/--no-stream", help="Stream output token-by-token (default from config)."),
+    template: str = typer.Option(None, "--template", "-T", help="Use a saved prompt template as the prompt."),
+    var: list[str] = typer.Option(None, "--var", "-V", help="Template variable k=v (repeatable)."),
 ):
     """Chat with any model — memory injected, cost & tokens traced automatically.
 
@@ -207,8 +451,21 @@ def chat(
       recall chat "prompt"                  (uses configured defaults)
     """
     r = _r()
+    repl = False
+    if template is not None:
+        # Template supplies the prompt; positionals (if any) are provider/model.
+        from .prompts import parse_vars
+        prompt = r.render_prompt(template, parse_vars(var))
+        if prompt is None:
+            console.print(f"[red]No template '{template}'[/red]")
+            r.close()
+            raise typer.Exit(1)
+        provider, model = (arg1, arg2) if arg2 is not None else (None, None)
+    elif arg1 is None:
+        # No prompt → drop into an interactive REPL using configured defaults.
+        provider, model, prompt, repl = None, None, None, True
     # Flexible argument parsing.
-    if arg2 is None and arg3 is None:
+    elif arg2 is None and arg3 is None:
         provider, model, prompt = None, None, arg1
     elif arg3 is None:
         # ambiguous: treat as provider+prompt only if defaults missing model
@@ -220,24 +477,18 @@ def chat(
     else:
         provider, model, prompt = arg1, arg2, arg3
 
-    try:
-        out = r.chat(
-            provider, model, prompt,
-            system=system, use_memory=not no_memory,
-            auto_memory=not no_auto,
-        )
-    except Exception as e:  # noqa: BLE001
-        console.print(f"[red]Error:[/red] {e}")
+    use_stream = r.config.stream if stream is None else stream
+
+    if repl:
+        _chat_repl(r, provider, model, system, not no_memory, not no_auto, use_stream)
+        r.close()
+        return
+
+    out = _send_chat(r, provider, model, prompt, system, not no_memory, not no_auto, use_stream)
+    if out is None:
         r.close()
         raise typer.Exit(1)
-
-    console.print(out.text)
-    meta = f"\n[dim]— {out.model} · {out.input_tokens}+{out.output_tokens} tok · ${out.cost_usd:.4f} · {out.latency_ms}ms[/dim]"
-    console.print(meta)
-    if out.auto_remembered:
-        console.print(f"[dim]🤖 remembered: {'; '.join(out.auto_remembered)}[/dim]")
-    if out.budget_warning:
-        console.print(f"[bold yellow]⚠ {out.budget_warning}[/bold yellow]")
+    _print_chat_meta(out)
     r.close()
 
 
@@ -264,6 +515,12 @@ def stats():
     else:
         console.print(f"Cost today      : [green]${today:.4f}[/green]")
     console.print(f"Avg latency     : [cyan]{s['avg_latency_ms']:.0f} ms[/cyan]")
+    ev = s.get("evals", {})
+    if ev.get("count"):
+        console.print(
+            f"Evals           : [cyan]{ev['passed']}/{ev['count']} passed[/cyan] "
+            f"[dim](avg score {ev['avg_score']:.2f})[/dim]"
+        )
 
     if s["by_model"]:
         table = Table(title="\nBy model")
@@ -287,17 +544,189 @@ def recent(limit: int = typer.Option(20, "--limit", "-n")):
         r.close()
         return
     table = Table(title="Recent calls")
+    table.add_column("ID", style="dim", justify="right")
     table.add_column("Model", style="cyan")
+    table.add_column("Kind", style="dim")
     table.add_column("In", justify="right")
     table.add_column("Out", justify="right")
     table.add_column("Cost", style="green", justify="right")
     table.add_column("Latency", justify="right")
     for row in rows:
         table.add_row(
-            row["model"], str(row["input_tokens"]), str(row["output_tokens"]),
+            str(row["id"]), row["model"], row.get("kind", "chat"),
+            str(row["input_tokens"]), str(row["output_tokens"]),
             f"${row['cost_usd']:.4f}", f"{row['latency_ms']} ms",
         )
     console.print(table)
+    r.close()
+
+
+@app.command()
+def trace(limit: int = typer.Option(10, "--limit", "-n", help="How many recent turns.")):
+    """Show recent turns as call trees: the chat call plus the memory
+    extraction / reconcile / graph calls it spawned, with per-turn totals."""
+    r = _r()
+    sessions = r.recent_sessions(limit=limit)
+    if not sessions:
+        console.print("[yellow]No calls traced yet.[/yellow]")
+        r.close()
+        return
+    from rich.tree import Tree
+
+    for s in sessions:
+        p = s["parent"]
+        root = Tree(
+            f"[cyan]{p['kind']}[/cyan] [bold]{p['model']}[/bold] · "
+            f"{p['input_tokens']}+{p['output_tokens']} tok · "
+            f"${p['cost_usd']:.4f} · {p['latency_ms']}ms"
+        )
+        for c in s["children"]:
+            root.add(
+                f"[magenta]{c['kind']}[/magenta] {c['model']} · "
+                f"{c['input_tokens']}+{c['output_tokens']} tok · ${c['cost_usd']:.4f}"
+            )
+        if s["children"]:
+            root.add(f"[dim]turn total: {s['total_tokens']} tok · ${s['total_cost']:.4f}[/dim]")
+        console.print(root)
+    r.close()
+
+
+@app.command()
+def pricing(model: str = typer.Argument(None, help="Model to look up (omit to list the table).")):
+    """Show per-1M-token pricing. Override with RECALL_PRICING_FILE (a JSON file)
+    or RECALL_PRICING (inline JSON) — no code edits needed."""
+    from .pricing import _load_pricing, price_of
+
+    if model:
+        entry = price_of(model)
+        if entry is None:
+            console.print(f"[yellow]No price for '{model}' — it traces at $0. "
+                          f"Add it via RECALL_PRICING_FILE.[/yellow]", markup=False)
+        else:
+            console.print(f"[cyan]{model}[/cyan]: ${entry['input']}/1M in · ${entry['output']}/1M out", markup=False)
+        return
+    table = Table(title="Pricing (USD per 1M tokens)")
+    table.add_column("Model", style="cyan")
+    table.add_column("Input", justify="right")
+    table.add_column("Output", justify="right")
+    for name, p in sorted(_load_pricing().items()):
+        table.add_row(name, f"${p['input']}", f"${p['output']}")
+    console.print(table)
+
+
+@app.command("eval")
+def eval_cmd(
+    trace_id: int = typer.Argument(..., help="Trace ID to evaluate (see `recall recent`)."),
+    contains: str = typer.Option(None, "--contains", help="Reply must contain this text."),
+    not_contains: str = typer.Option(None, "--not-contains", help="Reply must NOT contain this text."),
+    regex: str = typer.Option(None, "--regex", help="Reply must match this regex."),
+    max_tokens: int = typer.Option(None, "--max-tokens", help="Reply output tokens must be <= N."),
+    judge: str = typer.Option(None, "--judge", help="LLM-judge the reply against this criterion."),
+    suite: str = typer.Option(None, "--suite", help="Run a saved eval suite (flags override it)."),
+):
+    """Score a traced reply with local rules and/or an LLM judge; store results."""
+    r = _r()
+    if not any([contains, not_contains, regex, max_tokens, judge, suite]):
+        console.print("[yellow]Pass at least one check or --suite NAME[/yellow]")
+        r.close()
+        raise typer.Exit(1)
+    try:
+        if suite:
+            results = r.run_suite(
+                trace_id, suite, contains=contains, not_contains=not_contains,
+                regex=regex, max_tokens=max_tokens, judge=judge,
+            )
+        else:
+            results = r.evaluate(
+                trace_id, contains=contains, not_contains=not_contains, regex=regex,
+                max_tokens=max_tokens, judge=judge,
+            )
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        r.close()
+        raise typer.Exit(1)
+    if not results:
+        console.print("[yellow]No eval ran (judge needs a configured provider/model).[/yellow]")
+    for res in results:
+        mark = "✓" if res["passed"] else "✗"
+        color = "green" if res["passed"] else "red"
+        console.print(f"[{color}]{mark}[/{color}] {res['name']} ({res['score']:.2f})")
+        console.print(f"   {res['detail']}", markup=False)
+    r.close()
+
+
+@app.command()
+def evals(trace_id: int = typer.Option(None, "--trace", help="Filter to one trace ID.")):
+    """List recent eval results."""
+    r = _r()
+    rows = r.evals_for(trace_id) if trace_id else r.store.recent_evals()
+    if not rows:
+        console.print("[yellow]No evals yet. Run: recall eval <trace_id> --judge \"...\"[/yellow]")
+        r.close()
+        return
+    table = Table(title="Evals")
+    table.add_column("Trace", style="dim", justify="right")
+    table.add_column("Kind", style="dim")
+    table.add_column("Name", style="cyan")
+    table.add_column("Score", justify="right")
+    table.add_column("Pass", justify="center")
+    table.add_column("Detail")
+    for row in rows:
+        table.add_row(
+            str(row["trace_id"]), row["kind"], row["name"], f"{row['score']:.2f}",
+            "✓" if row["passed"] else "✗", row["detail"],
+        )
+    console.print(table)
+    r.close()
+
+
+@suite_app.command("save")
+def suite_save(
+    name: str = typer.Argument(..., help="Suite name."),
+    contains: str = typer.Option(None, "--contains"),
+    not_contains: str = typer.Option(None, "--not-contains"),
+    regex: str = typer.Option(None, "--regex"),
+    max_tokens: int = typer.Option(None, "--max-tokens"),
+    judge: str = typer.Option(None, "--judge"),
+):
+    """Save a reusable eval suite (a bundle of checks)."""
+    spec = {k: v for k, v in {
+        "contains": contains, "not_contains": not_contains, "regex": regex,
+        "max_tokens": max_tokens, "judge": judge,
+    }.items() if v is not None}
+    if not spec:
+        console.print("[yellow]Add at least one check.[/yellow]")
+        raise typer.Exit(1)
+    r = _r()
+    r.store.save_suite(name, spec)
+    console.print(f"[green]✓[/green] Saved eval suite '{name}'")
+    r.close()
+
+
+@suite_app.command("list")
+def suite_list():
+    """List saved eval suites."""
+    r = _r()
+    suites = r.store.list_suites()
+    if not suites:
+        console.print("[yellow]No eval suites. Save one: recall eval-suite save <name> --judge \"...\"[/yellow]")
+        r.close()
+        return
+    table = Table(title="Eval suites")
+    table.add_column("Name", style="cyan")
+    table.add_column("Checks")
+    for name, spec in suites:
+        table.add_row(name, ", ".join(f"{k}={v}" for k, v in spec.items()))
+    console.print(table)
+    r.close()
+
+
+@suite_app.command("rm")
+def suite_rm(name: str = typer.Argument(..., help="Suite name.")):
+    """Delete an eval suite."""
+    r = _r()
+    ok = r.store.delete_suite(name)
+    console.print(f"[green]✓[/green] Deleted '{name}'" if ok else f"[red]No suite '{name}'[/red]")
     r.close()
 
 
@@ -348,7 +777,10 @@ def config_show():
     table.add_column("Key", style="cyan")
     table.add_column("Value")
     for k in ("default_provider", "default_model", "daily_budget_usd",
-              "auto_memory", "memory_inject_limit", "active_scope"):
+              "budget_enforce", "auto_memory", "extraction_mode", "extraction_model",
+              "memory_ops", "graph_extract", "memory_inject_limit", "dedupe_similarity",
+              "recency_weight", "graph_weight", "stream", "otel_export",
+              "auto_eval_suite", "active_scope"):
         table.add_row(k, str(getattr(cfg, k)))
     console.print(table)
 
@@ -368,6 +800,73 @@ def config_path_cmd():
     console.print(str(config_path()))
 
 
+# ---- prompt templates ---------------------------------------------------
+@prompt_app.command("save")
+def prompt_save(
+    name: str = typer.Argument(..., help="Template name."),
+    content: str = typer.Argument(..., help="Template text; use {var} placeholders."),
+):
+    """Save (or replace) a prompt template / fragment."""
+    r = _r()
+    r.save_prompt(name, content)
+    console.print(f"[green]✓[/green] Saved template '{name}'")
+    r.close()
+
+
+@prompt_app.command("list")
+def prompt_list():
+    """List saved templates."""
+    r = _r()
+    rows = r.store.list_prompts()
+    if not rows:
+        console.print("[yellow]No templates. Save one: recall prompt save <name> \"...\"[/yellow]")
+        r.close()
+        return
+    table = Table(title="Prompt templates")
+    table.add_column("Name", style="cyan")
+    table.add_column("Content")
+    for row in rows:
+        preview = row["content"] if len(row["content"]) <= 70 else row["content"][:67] + "..."
+        table.add_row(row["name"], preview)
+    console.print(table)
+    r.close()
+
+
+@prompt_app.command("show")
+def prompt_show(name: str = typer.Argument(..., help="Template name.")):
+    """Print a template's raw content."""
+    r = _r()
+    content = r.store.get_prompt(name)
+    console.print(content, markup=False) if content is not None else console.print(f"[red]No template '{name}'[/red]")
+    r.close()
+
+
+@prompt_app.command("rm")
+def prompt_rm(name: str = typer.Argument(..., help="Template name.")):
+    """Delete a template."""
+    r = _r()
+    ok = r.store.delete_prompt(name)
+    console.print(f"[green]✓[/green] Deleted '{name}'" if ok else f"[red]No template '{name}'[/red]")
+    r.close()
+
+
+@prompt_app.command("use")
+def prompt_use(
+    name: str = typer.Argument(..., help="Template name."),
+    var: list[str] = typer.Option(None, "--var", "-V", help="Variable k=v (repeatable)."),
+):
+    """Render a template with variables and print it."""
+    from .prompts import parse_vars
+    r = _r()
+    rendered = r.render_prompt(name, parse_vars(var))
+    if rendered is None:
+        console.print(f"[red]No template '{name}'[/red]")
+        r.close()
+        raise typer.Exit(1)
+    console.print(rendered, markup=False)
+    r.close()
+
+
 # ---- dashboard / version ------------------------------------------------
 @app.command()
 def dashboard(port: int = typer.Option(8745, "--port", "-p")):
@@ -375,10 +874,28 @@ def dashboard(port: int = typer.Option(8745, "--port", "-p")):
     try:
         from .dashboard.server import serve
     except ImportError as e:
-        console.print(f"[red]Dashboard deps missing:[/red] {e}")
-        console.print("Install with: pip install 'recall-ai[dashboard]'")
+        console.print(f"[red]Dashboard deps missing:[/red] {e}", markup=False)
+        console.print("Install with: pip install 'recall-ai[dashboard]'", markup=False)
         raise typer.Exit(1)
     serve(port=port)
+
+
+@app.command()
+def mcp():
+    """Run recall as an MCP server (stdio) so any agent can read/write memory.
+
+    Wire it into an MCP client with:
+      {"mcpServers": {"recall": {"command": "recall", "args": ["mcp"]}}}
+
+    Requires: pip install 'recall-ai[mcp]'
+    """
+    try:
+        from .mcp_server import serve
+        serve()
+    except (ImportError, RuntimeError) as e:
+        console.print(f"[red]MCP unavailable:[/red] {e}", markup=False)
+        console.print("Install with: pip install 'recall-ai[mcp]'", markup=False)
+        raise typer.Exit(1)
 
 
 @app.command()

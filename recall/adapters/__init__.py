@@ -89,6 +89,50 @@ KEY_ENV: dict[str, str] = {
 }
 
 
+def register(
+    name: str,
+    adapter_cls: type[Adapter],
+    base_url: str | None = None,
+    key_env: str | None = None,
+) -> None:
+    """Register a custom adapter at runtime so `recall chat <name> ...` works.
+
+    Third parties can also ship adapters as a package and expose them under the
+    ``recall.adapters`` entry-point group (entry name = provider key, value = an
+    Adapter subclass, optionally with ``BASE_URL`` / ``KEY_ENV`` class attrs);
+    those load automatically on import.
+    """
+    name = name.lower()
+    REGISTRY[name] = adapter_cls
+    if base_url:
+        BASE_URLS[name] = base_url
+    if key_env:
+        KEY_ENV[name] = key_env
+
+
+def _load_plugins() -> None:
+    """Discover and register adapters published under the `recall.adapters`
+    entry-point group. Never raises — a broken plugin is skipped."""
+    try:
+        from importlib.metadata import entry_points
+    except ImportError:  # pragma: no cover
+        return
+    try:
+        eps = entry_points(group="recall.adapters")
+    except TypeError:  # Python < 3.10: entry_points() returns a dict
+        eps = entry_points().get("recall.adapters", [])
+    for ep in eps:
+        try:
+            obj = ep.load()
+            register(
+                ep.name, obj,
+                base_url=getattr(obj, "BASE_URL", None),
+                key_env=getattr(obj, "KEY_ENV", None),
+            )
+        except Exception:  # noqa: BLE001 — a bad plugin must not break recall
+            continue
+
+
 def get_adapter(provider: str, model: str, **kwargs) -> Adapter:
     provider = provider.lower()
     if provider not in REGISTRY:
@@ -111,7 +155,11 @@ __all__ = [
     "Adapter",
     "ChatResult",
     "get_adapter",
+    "register",
     "REGISTRY",
     "BASE_URLS",
     "KEY_ENV",
 ]
+
+# Load third-party adapter plugins (no-op if none installed).
+_load_plugins()
