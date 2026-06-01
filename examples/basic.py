@@ -1,11 +1,11 @@
 """Minimal library example.
 
-Run after: pip install 'zion-recall-ai[openai]'  (and set OPENAI_API_KEY)
+Run after: pip install 'engram-ai[openai]'  (and set OPENAI_API_KEY)
 """
 
-from recall import Recall
+from engram import Engram
 
-r = Recall()
+r = Engram()
 
 # Teach it about you (persisted locally, reused across runs and models).
 r.remember("I prefer concise answers with tables", tags=["style"])
