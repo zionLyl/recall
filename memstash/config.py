@@ -31,6 +31,8 @@ class Config:
     memory_ops: str = "append"             # "append" or "llm" (opt-in ADD/UPDATE/DELETE/NOOP conflict resolution)
     graph_extract: bool = False            # opt-in: mine (subject, predicate, object) relations from chats
     memory_inject_limit: int = 5
+    memory_min_score: float = 0.15         # relevance gate: only inject memories scoring >= this (semantic cosine); raise to be stricter
+    scope_auto: bool = False               # derive the active scope from the current git repo / cwd (per-project memory)
     embedding_backend: str = "local"       # "local" (sentence-transformers) or "api" (OpenAI-compatible /embeddings)
     embedding_model: Optional[str] = None  # required for api backend, e.g. "nomic-embed-text"
     embedding_base_url: Optional[str] = None  # api backend, e.g. http://localhost:11434/v1 (Ollama)

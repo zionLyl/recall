@@ -307,6 +307,7 @@ class MemoryEngine:
     def recall(
         self, query: str, limit: int = 5, scope: Optional[str] = None,
         recency_weight: float = 0.0, graph_weight: float = 0.0, touch: bool = True,
+        min_score: float = 0.15,
     ) -> list[Memory]:
         qvecs = self._encode([query]) if self.has_embeddings else None
         if not qvecs:
@@ -326,7 +327,7 @@ class MemoryEngine:
             for mid, content, tags, created, sc, src, score in ranked
         ]
         scored.sort(key=lambda m: m.score, reverse=True)
-        semantic = [m for m in scored if m.score > 0.15]
+        semantic = [m for m in scored if m.score >= min_score]
 
         # Keyword/BM25 ranking (catches exact terms, names, IDs the embeddings
         # may blur). Pull a wider pool than `limit` so fusion has signal.
@@ -373,11 +374,11 @@ class MemoryEngine:
 
     def build_context(
         self, query: str, limit: int = 5, scope: Optional[str] = None,
-        recency_weight: float = 0.0, graph_weight: float = 0.0,
+        recency_weight: float = 0.0, graph_weight: float = 0.0, min_score: float = 0.15,
     ) -> str:
         """Return a context block to prepend to a prompt."""
         hits = self.recall(
-            query, limit=limit, scope=scope,
+            query, limit=limit, scope=scope, min_score=min_score,
             recency_weight=recency_weight, graph_weight=graph_weight,
         )
         if not hits:

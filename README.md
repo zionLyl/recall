@@ -306,6 +306,10 @@ memstash scope work            # switch active scope
 memstash add "deadline Friday" # stored in 'work'
 memstash scope                 # list all scopes
 memstash list --all            # see every scope
+memstash config set scope_auto true   # or: auto-scope by current git repo / cwd
+
+# Only inject relevant memories (raise to be stricter; nothing relevant → nothing injected)
+memstash config set memory_min_score 0.3
 
 # Set a daily spend cap (warns at 80% and 100%)
 memstash config set daily_budget_usd 1.0

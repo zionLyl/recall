@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.16.0]
+
+Reliability + retrieval precision + per-project memory.
+
+### Added
+- **Retrieval relevance gate**: `memory_min_score` (default 0.15) — only memories
+  scoring at/above the threshold get injected, so weak/irrelevant context (and
+  wasted tokens) are filtered out. Raise it to be stricter; with nothing relevant,
+  nothing is injected.
+- **Auto scope**: `scope_auto` derives the active scope from the current git repo
+  (or cwd) name, so memory doesn't bleed between projects — no manual `scope`
+  switching.
+
+### Changed (reliability)
+- Memory retrieval is wrapped so a retrieval error can **never break a chat** —
+  it degrades to no-injection instead of raising.
+- SQLite opens with `busy_timeout=5000`, so a concurrent reader (dashboard) and
+  writer (CLI) wait for the lock instead of erroring.
+
 ## [0.15.1]
 
 ### Changed

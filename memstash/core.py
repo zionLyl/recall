@@ -29,6 +29,19 @@ from .pricing import estimate_cost
 from .store import Store, Trace
 
 
+def _auto_scope() -> Optional[str]:
+    """Derive a scope name from the nearest git repo root (else None). Pure,
+    no subprocess — walks up from the current directory looking for `.git`."""
+    try:
+        cwd = Path.cwd()
+    except OSError:
+        return None
+    for d in (cwd, *cwd.parents):
+        if (d / ".git").exists():
+            return d.name
+    return None
+
+
 class BudgetExceeded(RuntimeError):
     """Raised when budget_enforce is on and today's spend hit the daily budget."""
 
@@ -66,6 +79,13 @@ class Recall:
 
     @property
     def scope(self) -> str:
+        # Auto scope: derive per-project memory from the current git repo / cwd,
+        # so context doesn't bleed between projects. Falls back to the configured
+        # scope if not in a recognizable project.
+        if getattr(self.config, "scope_auto", False):
+            auto = _auto_scope()
+            if auto:
+                return auto
         return self.config.active_scope or "default"
 
     # ---- memory ---------------------------------------------------------
@@ -122,6 +142,7 @@ class Recall:
             query, limit=limit, scope=scope or self.scope,
             recency_weight=getattr(self.config, "recency_weight", 0.0),
             graph_weight=getattr(self.config, "graph_weight", 0.0),
+            min_score=getattr(self.config, "memory_min_score", 0.15),
         )
 
     def forget(self, memory_id: int, soft: bool = False) -> bool:
@@ -157,11 +178,15 @@ class Recall:
     def _inject(self, prompt, system, use_memory, memory_limit, scope) -> Optional[str]:
         final_system = system or ""
         if use_memory:
-            ctx = self.memory.build_context(
-                prompt, limit=memory_limit, scope=scope,
-                recency_weight=getattr(self.config, "recency_weight", 0.0),
-                graph_weight=getattr(self.config, "graph_weight", 0.0),
-            )
+            try:
+                ctx = self.memory.build_context(
+                    prompt, limit=memory_limit, scope=scope,
+                    recency_weight=getattr(self.config, "recency_weight", 0.0),
+                    graph_weight=getattr(self.config, "graph_weight", 0.0),
+                    min_score=getattr(self.config, "memory_min_score", 0.15),
+                )
+            except Exception:  # noqa: BLE001 — retrieval must never break the chat
+                ctx = ""
             if ctx:
                 final_system = (final_system + "\n\n" + ctx).strip()
         return final_system or None

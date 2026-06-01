@@ -276,6 +276,10 @@ memstash scope work            # 切换当前 scope
 memstash add "周五截止"        # 存入 'work'
 memstash scope                 # 列出所有 scope
 memstash list --all            # 查看所有 scope
+memstash config set scope_auto true   # 或:按当前 git 仓库 / 目录自动选 scope
+
+# 只注入相关记忆(调高更严格;没有相关的就不注入)
+memstash config set memory_min_score 0.3
 
 # 设置每日花费上限(80% 和 100% 时警告)
 memstash config set daily_budget_usd 1.0

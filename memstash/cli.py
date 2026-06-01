@@ -867,8 +867,8 @@ def config_show():
     table.add_column("Value")
     for k in ("default_provider", "default_model", "daily_budget_usd",
               "budget_enforce", "auto_memory", "extraction_mode", "extraction_model",
-              "memory_ops", "graph_extract", "memory_inject_limit",
-              "embedding_backend", "embedding_model", "embedding_base_url",
+              "memory_ops", "graph_extract", "memory_inject_limit", "memory_min_score",
+              "scope_auto", "embedding_backend", "embedding_model", "embedding_base_url",
               "dedupe_similarity", "recency_weight", "graph_weight", "stream",
               "otel_export", "auto_eval_suite", "active_scope"):
         table.add_row(k, str(getattr(cfg, k)))

@@ -195,6 +195,9 @@ class Store:
         try:
             self.conn.execute("PRAGMA journal_mode=WAL")
             self.conn.execute("PRAGMA synchronous=NORMAL")
+            # Wait up to 5s for a lock instead of erroring immediately, so a
+            # concurrent writer (CLI) and reader (dashboard) don't collide.
+            self.conn.execute("PRAGMA busy_timeout=5000")
         except sqlite3.OperationalError:
             pass
         self.conn.executescript(SCHEMA)
