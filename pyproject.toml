@@ -51,9 +51,9 @@ all = [
 dev = ["pytest>=7.0", "ruff>=0.4"]
 
 [project.urls]
-Homepage = "https://github.com/zionLyl/recall"
-Repository = "https://github.com/zionLyl/recall"
-Issues = "https://github.com/zionLyl/recall/issues"
+Homepage = "https://github.com/zionLyl/memstash"
+Repository = "https://github.com/zionLyl/memstash"
+Issues = "https://github.com/zionLyl/memstash/issues"
 
 [project.scripts]
 memstash = "memstash.cli:app"

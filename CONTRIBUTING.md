@@ -7,7 +7,7 @@ that keep that philosophy are very welcome.
 ## Dev setup
 
 ```bash
-git clone https://github.com/zionLyl/recall.git memstash && cd memstash
+git clone https://github.com/zionLyl/memstash.git memstash && cd memstash
 pip install -e '.[dev]'        # add [all] for every optional feature
 pytest -q                      # 150+ tests, all offline (no API key needed)
 ruff check memstash            # lint

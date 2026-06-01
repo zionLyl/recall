@@ -36,7 +36,7 @@ the first few hours (that's what converts views → stars).
 > numbers are honest, not vibes. MIT. Feedback very welcome — especially on the
 > local-first constraints I'm trying to hold.
 >
-> Repo: https://github.com/zionLyl/recall · `pip install memstash`
+> Repo: https://github.com/zionLyl/memstash · `pip install memstash`
 
 ---
 
@@ -64,7 +64,7 @@ the first few hours (that's what converts views → stars).
 >
 > Honest about what it is: a local-first single-file tool, not a hosted service.
 > Reproducible benchmark included. MIT. Would love feedback from people running
-> local stacks: https://github.com/zionLyl/recall
+> local stacks: https://github.com/zionLyl/memstash
 
 *(Check r/LocalLLaMA self-promo rules; engage genuinely, don't drive-by.)*
 
@@ -102,7 +102,7 @@ the first few hours (that's what converts views → stars).
 > Ships a reproducible benchmark so retrieval quality is measured, not claimed.
 > MIT, 150+ tests, single SQLite file.
 >
-> `pip install memstash` → https://github.com/zionLyl/recall
+> `pip install memstash` → https://github.com/zionLyl/memstash
 > ⭐ if it's useful — building in the open. [attach demo GIF]
 
 ---
@@ -130,7 +130,7 @@ the first few hours (that's what converts views → stars).
 
 Add an entry like this to relevant lists:
 
-> **[memstash](https://github.com/zionLyl/recall)** — Local-first LLM memory +
+> **[memstash](https://github.com/zionLyl/memstash)** — Local-first LLM memory +
 > cost/observability + evals in a single SQLite file. No server, no account.
 > Memory auto-injection across 22 providers, hybrid retrieval, MCP server. `pip
 > install memstash`.

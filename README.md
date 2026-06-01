@@ -5,7 +5,7 @@ No server, no account, no telemetry. Your data never leaves your machine.
 
 [![PyPI](https://img.shields.io/pypi/v/memstash.svg)](https://pypi.org/project/memstash/)
 [![Downloads](https://img.shields.io/pypi/dm/memstash.svg)](https://pypi.org/project/memstash/)
-[![CI](https://github.com/zionLyl/recall/actions/workflows/ci.yml/badge.svg)](https://github.com/zionLyl/recall/actions/workflows/ci.yml)
+[![CI](https://github.com/zionLyl/memstash/actions/workflows/ci.yml/badge.svg)](https://github.com/zionLyl/memstash/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/python-3.9+-blue.svg)
 ![Local-first](https://img.shields.io/badge/local--first-100%25-orange.svg)
@@ -84,7 +84,7 @@ pip install 'memstash[openai]'      # GPT / DeepSeek / Qwen / OpenAI-compatible
 #   pip install memstash                # base only (keyword + tracing)
 
 # not on PyPI yet? install straight from source:
-#   pipx install 'git+https://github.com/zionLyl/recall.git#egg=memstash[all]'
+#   pipx install 'git+https://github.com/zionLyl/memstash.git#egg=memstash[all]'
 ```
 
 ```bash
