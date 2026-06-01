@@ -331,10 +331,10 @@ memstash import my-brain.json
 |---|---|
 | `memstash init` | Guided first-time setup |
 | `memstash doctor` | Show which providers have keys |
-| `memstash add "..." [--tags a,b] [--scope s]` | Store a memory |
+| `memstash add "..." [--type decision] [--confidence 0.9] [--source ref] [--tags a,b] [--scope s]` | Store a (typed) memory |
 | `memstash ingest <file.md/.txt/.pdf>` | Ingest a document into searchable memory |
 | `memstash search "..." [--all]` | Semantic (or keyword) search |
-| `memstash list [--all] [--at WHEN]` | List memories (active, or valid as-of a past time) |
+| `memstash list [--all] [--type T] [--at WHEN]` | List memories (by type, active, or as-of a past time) |
 | `memstash show <id>` | Inspect a memory + its provenance (source chat) |
 | `memstash edit <id> ["new content"] [--tags ...]` | Edit a memory in place |
 | `memstash forget <id> [--soft]` | Delete (or soft-forget) a memory |

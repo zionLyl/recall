@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.17.0]
+
+Typed memory — for any agent, not just chat.
+
+### Added
+- **Typed memory + metadata**: every memory now carries a **type** (free-form;
+  e.g. `note`/`preference`/`fact`/`decision`/`constraint`/`event`/`lesson`), a
+  **confidence** (0–1), and a **source** reference (URL/file/origin). So an agent
+  can store and recall *decisions*, *constraints*, *lessons learned*, and
+  *preferences* — not just flat notes.
+  - `memstash add "..." --type decision --confidence 0.9 --source <ref>`
+  - `memstash list --type constraint` to filter; `memstash show <id>` prints
+    type/confidence/source; `Recall.remember(..., mem_type=, confidence=,
+    source_ref=)` from the library.
+  - Ingested documents are typed `document` with the file path as their source.
+  Migrated automatically for existing DBs (old rows default to `note`).
+
 ## [0.16.0]
 
 Reliability + retrieval precision + per-project memory.

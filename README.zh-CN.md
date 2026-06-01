@@ -301,10 +301,10 @@ memstash import my-brain.json
 |---|---|
 | `memstash init` | 向导式首次设置 |
 | `memstash doctor` | 查看哪些 provider 已配 key |
-| `memstash add "..." [--tags a,b] [--scope s]` | 存一条记忆 |
+| `memstash add "..." [--type decision] [--confidence 0.9] [--source ref] [--tags a,b]` | 存一条(带类型的)记忆 |
 | `memstash ingest <file.md/.txt/.pdf>` | 把文档摄入可检索记忆 |
 | `memstash search "..." [--all]` | 语义(或关键词)检索 |
-| `memstash list [--all] [--at WHEN]` | 列出记忆(当前有效,或某历史时间点有效) |
+| `memstash list [--all] [--type T] [--at WHEN]` | 列出记忆(按类型 / 当前有效 / 历史时间点) |
 | `memstash show <id>` | 查看一条记忆 + 来源(出处对话) |
 | `memstash edit <id> ["新内容"] [--tags ...]` | 原地编辑一条记忆 |
 | `memstash forget <id> [--soft]` | 删除(或软遗忘)一条记忆 |

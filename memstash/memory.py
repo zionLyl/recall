@@ -175,6 +175,9 @@ class MemoryEngine:
         dedupe: bool = True,
         similarity_threshold: float = 0.0,
         source_trace: Optional[int] = None,
+        mem_type: str = "note",
+        confidence: float = 1.0,
+        source_ref: Optional[str] = None,
     ) -> Optional[int]:
         content = content.strip()
         if not content:
@@ -192,7 +195,8 @@ class MemoryEngine:
                 return None
         return self.store.add_memory(
             content, tags=tags, embedding=embedding, scope=scope, source=source,
-            source_trace=source_trace,
+            source_trace=source_trace, mem_type=mem_type, confidence=confidence,
+            source_ref=source_ref,
         )
 
     def edit(

@@ -142,16 +142,20 @@ def add(
     content: str = typer.Argument(..., help="The memory to store."),
     tags: str = typer.Option("", "--tags", "-t", help="Comma-separated tags."),
     scope: str = typer.Option(None, "--scope", help="Memory scope (defaults to active)."),
+    mem_type: str = typer.Option("note", "--type", help="Kind: note/preference/fact/decision/constraint/event/lesson (free-form)."),
+    confidence: float = typer.Option(1.0, "--confidence", help="How sure (0–1)."),
+    source: str = typer.Option(None, "--source", help="Where it came from (URL, file, …)."),
 ):
-    """Store a persistent memory."""
+    """Store a persistent memory (optionally typed)."""
     r = _r()
     tag_list = [t for t in tags.split(",") if t.strip()]
-    mid = r.remember(content, tags=tag_list, scope=scope)
+    mid = r.remember(content, tags=tag_list, scope=scope, mem_type=mem_type,
+                     confidence=confidence, source_ref=source)
     if mid is None:
         console.print("[yellow]Already remembered (duplicate skipped).[/yellow]")
     else:
         mode = "semantic" if r.memory.has_embeddings else "keyword"
-        console.print(f"[green]✓[/green] Remembered #{mid} in '{scope or r.scope}' [dim]({mode})[/dim]")
+        console.print(f"[green]✓[/green] Remembered #{mid} [{mem_type}] in '{scope or r.scope}' [dim]({mode})[/dim]")
     r.close()
 
 
@@ -183,6 +187,7 @@ def search(
 @app.command("list")
 def list_memories(
     all_scopes: bool = typer.Option(False, "--all", help="List across all scopes."),
+    mem_type: str = typer.Option(None, "--type", help="Only memories of this type."),
     at: str = typer.Option(None, "--at", help="Time-travel: memories valid at this time (YYYY-MM-DD, '30d'/'12h' ago, or epoch)."),
 ):
     """List stored memories (active scope by default). With --at, show what was
@@ -192,10 +197,14 @@ def list_memories(
     if at is not None:
         ts = _parse_when(at)
         mems = r.store.memories_as_of(ts, scope=scope)
+        if mem_type:
+            mems = [m for m in mems if m.mem_type == mem_type]
         title_suffix = f" · as of {at}"
     else:
-        mems = r.store.all_memories(scope=scope)
+        mems = r.store.all_memories(scope=scope, mem_type=mem_type)
         title_suffix = "" if all_scopes else f" · scope='{r.scope}'"
+    if mem_type:
+        title_suffix += f" · type={mem_type}"
     if not mems:
         msg = f"No memories valid as of {at}." if at else f"No memories in '{r.scope}'. Add one: memstash add \"...\""
         console.print(f"[yellow]{msg}[/yellow]")
@@ -203,6 +212,7 @@ def list_memories(
         return
     table = Table(title=f"Memories ({len(mems)})" + title_suffix)
     table.add_column("ID", style="cyan", justify="right")
+    table.add_column("Type", style="magenta")
     table.add_column("Memory")
     table.add_column("Scope", style="blue")
     table.add_column("Src", style="dim")
@@ -211,7 +221,7 @@ def list_memories(
     for m in mems:
         src = "🤖" if m.source == "auto" else ""
         marker = "" if m.active else "[dim](past)[/dim] "
-        table.add_row(str(m.id), marker + escape(m.content), m.scope, src, ", ".join(m.tags))
+        table.add_row(str(m.id), m.mem_type, marker + escape(m.content), m.scope, src, ", ".join(m.tags))
     console.print(table)
     r.close()
 
@@ -249,10 +259,12 @@ def show(memory_id: int = typer.Argument(..., help="Memory ID to inspect.")):
         console.print(f"[red]✗[/red] No memory #{memory_id}")
         r.close()
         raise typer.Exit(1)
-    console.print(f"[bold]#{m.id}[/bold] [dim]({m.scope})[/dim]")
+    console.print(f"[bold]#{m.id}[/bold] [magenta]{m.mem_type}[/magenta] [dim]({m.scope})[/dim]")
     console.print(m.content, markup=False)
-    console.print(f"[dim]source={m.source} · tags={', '.join(m.tags) or '—'} · "
-                  f"hits={m.hit_count} · active={bool(m.active)}[/dim]")
+    console.print(f"[dim]source={m.source} · confidence={m.confidence:.2f} · "
+                  f"tags={', '.join(m.tags) or '—'} · hits={m.hit_count} · active={bool(m.active)}[/dim]")
+    if m.source_ref:
+        console.print(f"[dim]from: {m.source_ref}[/dim]", markup=False)
     if m.source_trace:
         tr = r.store.get_trace(m.source_trace)
         if tr:

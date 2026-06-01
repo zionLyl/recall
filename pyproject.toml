@@ -1,6 +1,6 @@
 [project]
 name = "memstash"
-version = "0.16.0"
+version = "0.17.0"
 description = "Your local AI brain: persistent memory + full observability for any model. Data never leaves your machine."
 readme = "README.md"
 license = { text = "MIT" }

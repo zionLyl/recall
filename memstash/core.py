@@ -95,10 +95,14 @@ class Recall:
         tags: Optional[list[str]] = None,
         scope: Optional[str] = None,
         source: str = "manual",
+        mem_type: str = "note",
+        confidence: float = 1.0,
+        source_ref: Optional[str] = None,
     ) -> Optional[int]:
         return self.memory.remember(
             content, tags=tags, scope=scope or self.scope, source=source,
             similarity_threshold=getattr(self.config, "dedupe_similarity", 0.0),
+            mem_type=mem_type, confidence=confidence, source_ref=source_ref,
         )
 
     def edit(
@@ -131,9 +135,13 @@ class Recall:
 
         chunks = chunk_text(read_file(path), max_chars=max_chars)
         tag_list = list(tags or []) + [_Path(path).stem]
+        ref = str(path)
         new = 0
         for c in chunks:
-            if self.memory.remember(c, tags=tag_list, scope=scope or self.scope, source=source) is not None:
+            if self.memory.remember(
+                c, tags=tag_list, scope=scope or self.scope, source=source,
+                mem_type="document", source_ref=ref,
+            ) is not None:
                 new += 1
         return {"path": str(path), "chunks": len(chunks), "new": new}
 

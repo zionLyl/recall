@@ -47,7 +47,11 @@ CREATE TABLE IF NOT EXISTS memories (
     valid_to   REAL,
     active     INTEGER NOT NULL DEFAULT 1,
     -- provenance: the chat trace this memory was auto-captured from
-    source_trace INTEGER
+    source_trace INTEGER,
+    -- typed memory: kind of memory, how sure we are, and where it came from
+    mem_type   TEXT NOT NULL DEFAULT 'note',
+    confidence REAL NOT NULL DEFAULT 1.0,
+    source_ref TEXT
 );
 
 CREATE TABLE IF NOT EXISTS traces (
@@ -130,6 +134,9 @@ MIGRATIONS = [
     "ALTER TABLE traces ADD COLUMN parent_id INTEGER",
     "ALTER TABLE traces ADD COLUMN kind TEXT NOT NULL DEFAULT 'chat'",
     "ALTER TABLE memories ADD COLUMN source_trace INTEGER",
+    "ALTER TABLE memories ADD COLUMN mem_type TEXT NOT NULL DEFAULT 'note'",
+    "ALTER TABLE memories ADD COLUMN confidence REAL NOT NULL DEFAULT 1.0",
+    "ALTER TABLE memories ADD COLUMN source_ref TEXT",
 ]
 
 
@@ -146,6 +153,9 @@ class Memory:
     last_used: Optional[float] = None
     active: int = 1
     source_trace: Optional[int] = None
+    mem_type: str = "note"
+    confidence: float = 1.0
+    source_ref: Optional[str] = None
 
 
 @dataclass
@@ -236,13 +246,18 @@ class Store:
         scope: str = "default",
         source: str = "manual",
         source_trace: Optional[int] = None,
+        mem_type: str = "note",
+        confidence: float = 1.0,
+        source_ref: Optional[str] = None,
     ) -> int:
         now = time.time()
         tag_str = ",".join(sorted(set(t.strip() for t in (tags or []) if t.strip())))
         cur = self.conn.execute(
             "INSERT INTO memories (content, tags, scope, source, embedding, created_at, "
-            "updated_at, valid_from, active, source_trace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)",
-            (content, tag_str, scope, source, embedding, now, now, now, source_trace),
+            "updated_at, valid_from, active, source_trace, mem_type, confidence, source_ref) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)",
+            (content, tag_str, scope, source, embedding, now, now, now, source_trace,
+             mem_type or "note", confidence, source_ref),
         )
         self.conn.commit()
         return int(cur.lastrowid)
@@ -261,15 +276,22 @@ class Store:
             last_used=r["last_used"] if "last_used" in keys else None,
             active=r["active"] if "active" in keys else 1,
             source_trace=r["source_trace"] if "source_trace" in keys else None,
+            mem_type=r["mem_type"] if "mem_type" in keys else "note",
+            confidence=r["confidence"] if "confidence" in keys else 1.0,
+            source_ref=r["source_ref"] if "source_ref" in keys else None,
         )
 
     def all_memories(
-        self, scope: Optional[str] = None, include_inactive: bool = False
+        self, scope: Optional[str] = None, include_inactive: bool = False,
+        mem_type: Optional[str] = None,
     ) -> list[Memory]:
         where, params = [], []
         if scope:
             where.append("scope = ?")
             params.append(scope)
+        if mem_type:
+            where.append("mem_type = ?")
+            params.append(mem_type)
         if not include_inactive:
             where.append("active = 1")
         clause = (" WHERE " + " AND ".join(where)) if where else ""
