@@ -38,8 +38,9 @@ whole suite runs in ~2s with no keys.
 
 ## Good first issues
 
-See [`docs/good-first-issues.md`](docs/good-first-issues.md) for a starter list
-(a TUI, more provider pricing, an `mcp` resource, export formats, …).
+Check the [issues](https://github.com/zionLyl/memstash/issues) labeled
+`good first issue` (a TUI, more provider pricing, an `mcp` resource, export
+formats, …).
 
 ## Releasing (maintainers)
 
