@@ -7,7 +7,7 @@ that keep that philosophy are very welcome.
 ## Dev setup
 
 ```bash
-git clone https://github.com/zionLyl/memstash.git memstash && cd memstash
+git clone https://github.com/zionfly/memstash.git memstash && cd memstash
 pip install -e '.[dev]'        # add [all] for every optional feature
 pytest -q                      # 150+ tests, all offline (no API key needed)
 ruff check memstash            # lint
@@ -38,7 +38,7 @@ whole suite runs in ~2s with no keys.
 
 ## Good first issues
 
-Check the [issues](https://github.com/zionLyl/memstash/issues) labeled
+Check the [issues](https://github.com/zionfly/memstash/issues) labeled
 `good first issue` (a TUI, more provider pricing, an `mcp` resource, export
 formats, …).
 

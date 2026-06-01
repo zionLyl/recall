@@ -7,7 +7,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/memstash.svg)](https://pypi.org/project/memstash/)
 [![Downloads](https://img.shields.io/pypi/dm/memstash.svg)](https://pypi.org/project/memstash/)
-[![CI](https://github.com/zionLyl/memstash/actions/workflows/ci.yml/badge.svg)](https://github.com/zionLyl/memstash/actions/workflows/ci.yml)
+[![CI](https://github.com/zionfly/memstash/actions/workflows/ci.yml/badge.svg)](https://github.com/zionfly/memstash/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/python-3.9+-blue.svg)
 ![Local-first](https://img.shields.io/badge/local--first-100%25-orange.svg)
@@ -397,4 +397,4 @@ pytest
 
 ## 许可证
 
-MIT © [zionLyl](https://github.com/zionLyl)
+MIT © [zionfly](https://github.com/zionfly)

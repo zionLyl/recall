@@ -4,7 +4,7 @@ version = "0.18.0"
 description = "Your local AI brain: persistent memory + full observability for any model. Data never leaves your machine."
 readme = "README.md"
 license = { text = "MIT" }
-authors = [{ name = "zionLyl" }]
+authors = [{ name = "zionfly" }]
 requires-python = ">=3.9"
 keywords = ["ai", "agent", "memory", "observability", "llm", "local-first", "cli"]
 classifiers = [
@@ -51,9 +51,9 @@ all = [
 dev = ["pytest>=7.0", "ruff>=0.4"]
 
 [project.urls]
-Homepage = "https://github.com/zionLyl/memstash"
-Repository = "https://github.com/zionLyl/memstash"
-Issues = "https://github.com/zionLyl/memstash/issues"
+Homepage = "https://github.com/zionfly/memstash"
+Repository = "https://github.com/zionfly/memstash"
+Issues = "https://github.com/zionfly/memstash/issues"
 
 [project.scripts]
 memstash = "memstash.cli:app"

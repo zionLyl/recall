@@ -6,7 +6,7 @@ name: Publish to PyPI
 # One-time setup on PyPI:
 #   1. Create the project `memstash` (or let the first manual upload create it).
 #   2. PyPI → project → Publishing → add a trusted publisher:
-#        owner: zionLyl  repo: memstash  workflow: publish.yml  environment: pypi
+#        owner: zionfly  repo: memstash  workflow: publish.yml  environment: pypi
 #
 # Then releasing is just:  git tag v0.3.0 && git push origin v0.3.0
 
