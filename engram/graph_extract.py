@@ -1,7 +1,7 @@
 """LLM extraction of entity relationships as (subject, predicate, object) triples.
 
 Opt-in (config `graph_extract = true`). Turns free text into a small set of
-relational facts that recall stores in its graph-lite `relations` table, enabling
+relational facts that engram stores in its graph-lite `relations` table, enabling
 queries like "what do I know about Acme?" without a graph database.
 
 Like the other LLM helpers it degrades gracefully — any failure yields no

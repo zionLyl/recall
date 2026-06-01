@@ -1,7 +1,7 @@
 """Tests for adapter plugin registration."""
 
-from recall.adapters import BASE_URLS, KEY_ENV, REGISTRY, get_adapter, register
-from recall.adapters.base import Adapter, ChatResult
+from engram.adapters import BASE_URLS, KEY_ENV, REGISTRY, get_adapter, register
+from engram.adapters.base import Adapter, ChatResult
 
 
 class MyAdapter(Adapter):
@@ -38,7 +38,7 @@ def test_register_is_case_insensitive():
 
 def test_load_plugins_is_safe_with_none_installed():
     # Importing the package already ran _load_plugins(); calling again must not raise.
-    from recall.adapters import _load_plugins
+    from engram.adapters import _load_plugins
     _load_plugins()
     # Built-in providers are still present.
     assert "openai" in REGISTRY and len(REGISTRY) >= 20

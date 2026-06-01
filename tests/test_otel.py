@@ -2,7 +2,7 @@
 
 import importlib.util
 
-from recall.otel_export import export, is_available, oi_attributes
+from engram.otel_export import export, is_available, oi_attributes
 
 
 def test_oi_attributes_mapping():

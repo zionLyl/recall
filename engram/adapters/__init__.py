@@ -1,6 +1,6 @@
 """Model adapter registry.
 
-A unified, minimal interface across providers so recall can attach memory and
+A unified, minimal interface across providers so engram can attach memory and
 observability to any model. Each adapter returns (text, input_tokens,
 output_tokens). Adapters import their SDK lazily so the base install stays
 dependency-free.
@@ -63,7 +63,7 @@ BASE_URLS: dict[str, str] = {
     "lmstudio": "http://localhost:1234/v1",
 }
 
-# Provider -> env var name to read the API key from (falls back to RECALL_API_KEY).
+# Provider -> env var name to read the API key from (falls back to ENGRAM_API_KEY).
 KEY_ENV: dict[str, str] = {
     "openai": "OPENAI_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
@@ -95,10 +95,10 @@ def register(
     base_url: str | None = None,
     key_env: str | None = None,
 ) -> None:
-    """Register a custom adapter at runtime so `recall chat <name> ...` works.
+    """Register a custom adapter at runtime so `engram chat <name> ...` works.
 
     Third parties can also ship adapters as a package and expose them under the
-    ``recall.adapters`` entry-point group (entry name = provider key, value = an
+    ``engram.adapters`` entry-point group (entry name = provider key, value = an
     Adapter subclass, optionally with ``BASE_URL`` / ``KEY_ENV`` class attrs);
     those load automatically on import.
     """
@@ -111,16 +111,16 @@ def register(
 
 
 def _load_plugins() -> None:
-    """Discover and register adapters published under the `recall.adapters`
+    """Discover and register adapters published under the `engram.adapters`
     entry-point group. Never raises — a broken plugin is skipped."""
     try:
         from importlib.metadata import entry_points
     except ImportError:  # pragma: no cover
         return
     try:
-        eps = entry_points(group="recall.adapters")
+        eps = entry_points(group="engram.adapters")
     except TypeError:  # Python < 3.10: entry_points() returns a dict
-        eps = entry_points().get("recall.adapters", [])
+        eps = entry_points().get("engram.adapters", [])
     for ep in eps:
         try:
             obj = ep.load()
@@ -129,7 +129,7 @@ def _load_plugins() -> None:
                 base_url=getattr(obj, "BASE_URL", None),
                 key_env=getattr(obj, "KEY_ENV", None),
             )
-        except Exception:  # noqa: BLE001 — a bad plugin must not break recall
+        except Exception:  # noqa: BLE001 — a bad plugin must not break engram
             continue
 
 
@@ -147,7 +147,7 @@ def get_adapter(provider: str, model: str, **kwargs) -> Adapter:
 
         env_name = KEY_ENV.get(provider)
         if env_name:
-            kwargs["api_key"] = os.environ.get(env_name) or os.environ.get("RECALL_API_KEY")
+            kwargs["api_key"] = os.environ.get(env_name) or os.environ.get("ENGRAM_API_KEY")
     return REGISTRY[provider](model=model, **kwargs)
 
 

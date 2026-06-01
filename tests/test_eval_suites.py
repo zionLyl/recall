@@ -5,10 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from recall.adapters.base import Adapter, ChatResult
-from recall.config import Config
-from recall.core import Recall
-from recall.store import Store, Trace
+from engram.adapters.base import Adapter, ChatResult
+from engram.config import Config
+from engram.core import Recall
+from engram.store import Store, Trace
 
 
 def _tmp_store() -> Store:
@@ -18,7 +18,7 @@ def _tmp_store() -> Store:
 
 def _tmp_recall(monkeypatch) -> Recall:
     d = tempfile.mkdtemp()
-    monkeypatch.setenv("RECALL_HOME", d)
+    monkeypatch.setenv("ENGRAM_HOME", d)
     return Recall(Path(d) / "recall.db", config=Config())
 
 
@@ -83,7 +83,7 @@ class FakeAdapter(Adapter):
 
 def test_auto_eval_runs_configured_suite(monkeypatch):
     r = _tmp_recall(monkeypatch)
-    import recall.core as core
+    import engram.core as core
     monkeypatch.setattr(core, "get_adapter", lambda *a, **k: FakeAdapter("fake-model"))
     r.store.save_suite("q", {"contains": "Paris"})
     r.config.auto_eval_suite = "q"

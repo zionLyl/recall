@@ -1,6 +1,6 @@
-"""Local-first storage layer for recall.
+"""Local-first storage layer for engram.
 
-Everything lives in a single SQLite file under ~/.recall/recall.db by default.
+Everything lives in a single SQLite file under ~/.engram/engram.db by default.
 Two core tables:
   - memories: persistent facts/preferences, optionally with an embedding for
     semantic search.
@@ -23,11 +23,11 @@ from typing import Iterable, Optional
 
 
 def default_db_path() -> Path:
-    """Resolve the DB path. Override with the RECALL_HOME env var."""
-    home = os.environ.get("RECALL_HOME")
-    base = Path(home) if home else Path.home() / ".recall"
+    """Resolve the DB path. Override with the ENGRAM_HOME env var."""
+    home = os.environ.get("ENGRAM_HOME")
+    base = Path(home) if home else Path.home() / ".engram"
     base.mkdir(parents=True, exist_ok=True)
-    return base / "recall.db"
+    return base / "engram.db"
 
 
 SCHEMA = """

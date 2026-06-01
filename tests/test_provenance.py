@@ -3,10 +3,10 @@
 import tempfile
 from pathlib import Path
 
-from recall.adapters.base import Adapter, ChatResult
-from recall.config import Config
-from recall.core import Recall
-from recall.store import Store
+from engram.adapters.base import Adapter, ChatResult
+from engram.config import Config
+from engram.core import Recall
+from engram.store import Store
 
 
 def _tmp_store() -> Store:
@@ -16,7 +16,7 @@ def _tmp_store() -> Store:
 
 def _tmp_recall(monkeypatch) -> Recall:
     d = tempfile.mkdtemp()
-    monkeypatch.setenv("RECALL_HOME", d)
+    monkeypatch.setenv("ENGRAM_HOME", d)
     return Recall(Path(d) / "recall.db", config=Config())
 
 
@@ -40,7 +40,7 @@ class FakeAdapter(Adapter):
 
 def test_auto_captured_memory_links_to_chat_trace(monkeypatch):
     r = _tmp_recall(monkeypatch)
-    import recall.core as core
+    import engram.core as core
     monkeypatch.setattr(core, "get_adapter", lambda *a, **k: FakeAdapter("fake-model"))
     # heuristic extraction will capture this first-person preference
     r.chat("fake", "fake-model", "I prefer concise answers", auto_memory=True)

@@ -5,14 +5,14 @@ from pathlib import Path
 
 import pytest
 
-from recall.config import Config
-from recall.core import Recall
-from recall.ingest import chunk_text, read_file
+from engram.config import Config
+from engram.core import Recall
+from engram.ingest import chunk_text, read_file
 
 
 def _tmp_recall(monkeypatch) -> Recall:
     d = tempfile.mkdtemp()
-    monkeypatch.setenv("RECALL_HOME", d)
+    monkeypatch.setenv("ENGRAM_HOME", d)
     return Recall(Path(d) / "recall.db", config=Config())
 
 

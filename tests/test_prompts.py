@@ -3,8 +3,8 @@
 import tempfile
 from pathlib import Path
 
-from recall.prompts import parse_vars, render
-from recall.store import Store
+from engram.prompts import parse_vars, render
+from engram.store import Store
 
 
 def _tmp_store() -> Store:

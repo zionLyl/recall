@@ -3,9 +3,9 @@
 import tempfile
 from pathlib import Path
 
-from recall.store import Store, Trace
-from recall.memory import MemoryEngine
-from recall.pricing import estimate_cost
+from engram.store import Store, Trace
+from engram.memory import MemoryEngine
+from engram.pricing import estimate_cost
 
 
 def _tmp_store() -> Store:
@@ -73,7 +73,7 @@ def test_pricing_known_and_prefix():
 
 
 def test_provider_registry_and_base_urls():
-    from recall.adapters import BASE_URLS, KEY_ENV, REGISTRY, get_adapter
+    from engram.adapters import BASE_URLS, KEY_ENV, REGISTRY, get_adapter
 
     # Broad provider coverage (ECC-style).
     assert len(REGISTRY) >= 20

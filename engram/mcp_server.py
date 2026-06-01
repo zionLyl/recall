@@ -1,22 +1,22 @@
-"""MCP server: expose recall's memory to any MCP-aware agent.
+"""MCP server: expose engram's memory to any MCP-aware agent.
 
-This turns your local recall brain into a set of MCP tools, so editors and
+This turns your local engram brain into a set of MCP tools, so editors and
 agents (Claude Desktop, Claude Code, Cursor, etc.) can read and write the *same*
 memory store you use from the CLI — without anything leaving your machine.
 
 Run it:
 
-    recall mcp                      # stdio transport (the usual MCP wiring)
+    engram mcp                      # stdio transport (the usual MCP wiring)
 
 Then point your MCP client at that command. Example client config entry:
 
     {
       "mcpServers": {
-        "recall": { "command": "recall", "args": ["mcp"] }
+        "engram": { "command": "engram", "args": ["mcp"] }
       }
     }
 
-Requires the MCP SDK:  pip install 'zion-recall-ai[mcp]'
+Requires the MCP SDK:  pip install 'engram-ai[mcp]'
 
 Tools exposed:
   - remember(content, tags?, scope?)        store a memory
@@ -34,21 +34,21 @@ from .core import Recall
 
 
 def build_server(recall: Optional[Recall] = None):
-    """Construct the FastMCP server with recall's tools registered."""
+    """Construct the FastMCP server with engram's tools registered."""
     try:
         from mcp.server.fastmcp import FastMCP
     except ImportError as e:  # pragma: no cover - depends on optional extra
         raise RuntimeError(
-            "MCP SDK not installed. Run: pip install 'zion-recall-ai[mcp]'"
+            "MCP SDK not installed. Run: pip install 'engram-ai[mcp]'"
         ) from e
 
     r = recall or Recall()
-    mcp = FastMCP("recall")
+    mcp = FastMCP("engram")
 
     @mcp.tool()
     def remember(content: str, tags: Optional[list[str]] = None,
                  scope: Optional[str] = None) -> str:
-        """Store a durable memory (fact/preference) in the local recall store.
+        """Store a durable memory (fact/preference) in the local engram store.
 
         Use this whenever the user states a stable preference or fact worth
         remembering across sessions.

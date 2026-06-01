@@ -3,15 +3,15 @@
 import tempfile
 from pathlib import Path
 
-from recall.adapters.base import Adapter, ChatResult, approx_tokens
-from recall.config import Config
-from recall.core import Recall
-from recall.extract_llm import _parse
+from engram.adapters.base import Adapter, ChatResult, approx_tokens
+from engram.config import Config
+from engram.core import Recall
+from engram.extract_llm import _parse
 
 
 def _tmp_recall(monkeypatch) -> Recall:
     d = tempfile.mkdtemp()
-    monkeypatch.setenv("RECALL_HOME", d)
+    monkeypatch.setenv("ENGRAM_HOME", d)
     return Recall(Path(d) / "recall.db", config=Config())
 
 
@@ -32,7 +32,7 @@ class FakeAdapter(Adapter):
 
 
 def _patch_adapter(monkeypatch):
-    import recall.core as core
+    import engram.core as core
     monkeypatch.setattr(core, "get_adapter", lambda *a, **k: FakeAdapter("fake-model"))
 
 
@@ -91,13 +91,13 @@ def test_llm_extraction_mode_falls_back_on_error(monkeypatch):
     # extraction_mode='llm' but extractor raises -> heuristic fallback, no crash.
     r = _tmp_recall(monkeypatch)
     r.config.extraction_mode = "llm"
-    import recall.core as core
+    import engram.core as core
 
     def boom(*a, **k):
         raise RuntimeError("no api key")
 
     monkeypatch.setattr(core, "extract_memories", lambda text: ["I prefer concise answers"])
-    monkeypatch.setattr("recall.extract_llm.extract_memories_llm", boom)
+    monkeypatch.setattr("engram.extract_llm.extract_memories_llm", boom)
     captured = r._auto_capture("I prefer concise answers", True, "default",
                                "openai", "gpt-4o-mini", None, None)
     assert captured == ["I prefer concise answers"]
@@ -109,6 +109,6 @@ def test_build_server_importable():
     if importlib.util.find_spec("mcp") is None:
         import pytest
         pytest.skip("mcp SDK not installed")
-    from recall.mcp_server import build_server
+    from engram.mcp_server import build_server
     server = build_server()
     assert server is not None

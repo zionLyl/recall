@@ -3,7 +3,7 @@
 import tempfile
 from pathlib import Path
 
-from recall.store import Store
+from engram.store import Store
 
 
 def _tmp_store() -> Store:

@@ -3,17 +3,17 @@
 import tempfile
 from pathlib import Path
 
-from recall.config import Config
-from recall.core import Recall
-from recall.evals import (
+from engram.config import Config
+from engram.core import Recall
+from engram.evals import (
     _parse_judge, check_contains, check_max_tokens, check_not_contains, check_regex,
 )
-from recall.store import Trace
+from engram.store import Trace
 
 
 def _tmp_recall(monkeypatch) -> Recall:
     d = tempfile.mkdtemp()
-    monkeypatch.setenv("RECALL_HOME", d)
+    monkeypatch.setenv("ENGRAM_HOME", d)
     return Recall(Path(d) / "recall.db", config=Config())
 
 

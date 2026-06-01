@@ -42,7 +42,7 @@ def _get_model():
     # One-time heads-up: the first load downloads ~80MB and can take a moment.
     import sys
     print(
-        "recall: loading the embedding model for semantic search "
+        "engram: loading the embedding model for semantic search "
         "(first run may download ~80MB)…",
         file=sys.stderr, flush=True,
     )
@@ -155,7 +155,7 @@ class MemoryEngine:
         if cfg.backend == "api":
             if not (cfg.base_url and cfg.model):
                 return None
-            key = os.environ.get(cfg.api_key_env or "", "") or os.environ.get("RECALL_API_KEY", "")
+            key = os.environ.get(cfg.api_key_env or "", "") or os.environ.get("ENGRAM_API_KEY", "")
             return _embed_api(texts, cfg.base_url, cfg.model, key or None)
         model = _get_model()
         if model is None:

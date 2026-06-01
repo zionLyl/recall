@@ -1,6 +1,6 @@
-"""User configuration for recall.
+"""User configuration for engram.
 
-Stored as JSON at ~/.recall/config.json (override base with RECALL_HOME).
+Stored as JSON at ~/.engram/config.json (override base with ENGRAM_HOME).
 Holds defaults so users don't repeat themselves: default provider/model,
 daily budget, auto-memory toggle, active scope, etc.
 """

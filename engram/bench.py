@@ -1,4 +1,4 @@
-"""Reproducible benchmark for recall's memory quality.
+"""Reproducible benchmark for engram's memory quality.
 
 Deterministic and API-key-free: seeds a fixed memory set into a throwaway store,
 then measures how well retrieval surfaces the *relevant* memories for each query
@@ -7,10 +7,10 @@ keyword/BM25 was used, so the numbers are comparable and not overstated. A small
 extraction check measures how well the heuristic auto-capture catches durable
 facts while ignoring questions.
 
-Run:  recall benchmark
+Run:  engram benchmark
 
 The headline numbers depend on the active embedding backend — install
-`zion-recall-ai[embeddings]` (or configure an api backend) for the semantic
+`engram-ai[embeddings]` (or configure an api backend) for the semantic
 numbers; otherwise you get the keyword/BM25 baseline.
 """
 

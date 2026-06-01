@@ -1,6 +1,6 @@
 """Quality evals for traced calls — local rule checks and an LLM judge.
 
-recall already shows *cost* per call; evals make *quality* observable too, the
+engram already shows *cost* per call; evals make *quality* observable too, the
 local-first counterpart to Langfuse/Phoenix evals. Rule checks are free and
 deterministic; the LLM judge scores a reply against a criterion.
 

@@ -1,7 +1,7 @@
 """Ingest documents into searchable memory.
 
 Reads a text/markdown file (or PDF if `pypdf` is installed), splits it into
-reasonably-sized chunks, and stores each as a memory — so `recall search` and
+reasonably-sized chunks, and stores each as a memory — so `engram search` and
 chat memory-injection cover your notes/docs, not just facts you typed in. Purely
 local and deterministic; no LLM or external service involved.
 """
@@ -50,7 +50,7 @@ def read_file(path) -> str:
             import pypdf
         except ImportError as e:
             raise RuntimeError(
-                "PDF support needs: pip install 'zion-recall-ai[pdf]'"
+                "PDF support needs: pip install 'engram-ai[pdf]'"
             ) from e
         reader = pypdf.PdfReader(str(p))
         return "\n\n".join((page.extract_text() or "") for page in reader.pages)

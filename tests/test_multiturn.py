@@ -3,14 +3,14 @@
 import tempfile
 from pathlib import Path
 
-from recall.adapters.base import Adapter, ChatResult
-from recall.config import Config
-from recall.core import Recall
+from engram.adapters.base import Adapter, ChatResult
+from engram.config import Config
+from engram.core import Recall
 
 
 def _tmp_recall(monkeypatch) -> Recall:
     d = tempfile.mkdtemp()
-    monkeypatch.setenv("RECALL_HOME", d)
+    monkeypatch.setenv("ENGRAM_HOME", d)
     return Recall(Path(d) / "recall.db", config=Config())
 
 
@@ -25,7 +25,7 @@ class RecordingAdapter(Adapter):
 
 def test_history_threaded_to_adapter(monkeypatch):
     r = _tmp_recall(monkeypatch)
-    import recall.core as core
+    import engram.core as core
     monkeypatch.setattr(core, "get_adapter", lambda *a, **k: RecordingAdapter("m"))
     convo = [
         {"role": "user", "content": "hi"},
@@ -37,7 +37,7 @@ def test_history_threaded_to_adapter(monkeypatch):
 
 def test_no_history_defaults_none(monkeypatch):
     r = _tmp_recall(monkeypatch)
-    import recall.core as core
+    import engram.core as core
     monkeypatch.setattr(core, "get_adapter", lambda *a, **k: RecordingAdapter("m"))
     RecordingAdapter.seen_history = "sentinel"
     r.chat("fake", "m", "hi", auto_memory=False)
@@ -45,7 +45,7 @@ def test_no_history_defaults_none(monkeypatch):
 
 
 def test_openai_messages_include_history():
-    from recall.adapters.openai_adapter import OpenAIAdapter
+    from engram.adapters.openai_adapter import OpenAIAdapter
     a = OpenAIAdapter("gpt-4o-mini")
     msgs = a._messages(
         "now", system="sys",
@@ -56,7 +56,7 @@ def test_openai_messages_include_history():
 
 
 def test_gemini_contents_roles():
-    from recall.adapters.gemini_adapter import GeminiAdapter
+    from engram.adapters.gemini_adapter import GeminiAdapter
     contents = GeminiAdapter._contents(
         "now", [{"role": "user", "content": "a"}, {"role": "assistant", "content": "b"}],
     )
