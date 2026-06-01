@@ -35,22 +35,42 @@ entirely on your machine: no server, no account, nothing leaves your laptop.
 - Let **Claude Desktop / Cursor** read & write the same memory over MCP.
 - **Capture an existing LangChain / OpenAI-SDK app's** calls into a local log.
 
-### Features
+### Capabilities
 
-- 🧠 **Persistent memory** across sessions *and* across models
-- 🔎 **Hybrid retrieval** — semantic + BM25 keyword search, fused (no extra deps)
-- 🤖 **Auto-memory** — captures your preferences from conversation (EN + 中文)
-- ♻️ **Conflict resolution** (opt-in) — ADD/UPDATE/DELETE/NOOP so facts stay current
-- ⏳ **Lifecycle + bi-temporal** — soft-forget, recency ranking, "what did I know on date X?"
-- 🕸️ **Graph-lite** — entity relationships in SQLite (no graph DB)
-- 📄 **Document ingestion** — drop in `.md`/`.txt`/`.pdf`, it's searchable
-- 🌊 **Streaming + interactive REPL** — `memstash chat`, multi-turn
-- 📊 **Observability** — tokens/cost/latency per call, per-turn **trace trees**, evals
-- 📡 **Capture other apps** — sink LangChain/OpenAI-SDK calls via `memstash.instrument()`
-- 💰 **Daily budget** — warnings + optional hard-stop
-- 🔌 **22 providers** — cloud, Chinese clouds, fast-inference hosts, local
-- 🔗 **MCP server** — any agent (Claude Desktop/Code, Cursor) reads/writes your memory
-- 🏠 **100% local** — no accounts, no servers, no telemetry
+**🧠 Memory**
+- Persistent memory, auto-injected into prompts, across sessions *and* models
+- Hybrid retrieval — semantic (embeddings) + BM25 (SQLite FTS5), fused with RRF
+- Relevance gate (`memory_min_score`) + top-k injection — only what's relevant
+- Auto-capture from conversation (heuristic EN + 中文, or opt-in LLM extraction)
+- **Typed memory** — `note` / `preference` / `fact` / `decision` / `constraint` / `event` / `lesson`, plus `confidence` and `source`
+- **Conflict resolution** (opt-in) — ADD / UPDATE / DELETE / NOOP keeps facts current
+- **Lifecycle** — usage tracking, recency ranking, soft-forget, `prune`
+- **Bi-temporal** — `list --at <when>`: what was valid at a past time
+- **Graph-lite** — `(subject, predicate, object)` relations + graph-aware retrieval (no graph DB)
+- Editing, exact + similarity dedupe, provenance, JSON export/import
+- **Scopes** per project + **auto-scope** by git repo / cwd
+- Document ingestion (`.md` / `.txt` / `.pdf`)
+- Embeddings: local model **or** any OpenAI-compatible endpoint (Ollama / LM Studio — no PyTorch)
+
+**🛡️ Write firewall (poisoning protection)**
+- Untrusted writes are quarantined (stored inactive, never injected) until you `approve` / `reject`
+- Source-trust tiers + prompt-injection heuristics (EN + 中文); modes: quarantine / warn / off
+
+**💬 Chat**
+- 22 providers behind one interface (OpenAI-compatible, Claude, Gemini, DeepSeek/Qwen/Kimi/GLM…, local Ollama/LM Studio)
+- Streaming, multi-turn history, interactive REPL (`memstash chat`), prompt templates
+
+**📊 Observability & cost**
+- Per-call tokens / cost / latency; `stats`, `recent`, per-turn **trace trees**
+- Daily budget warnings + optional hard-stop; maintained, override-able pricing map
+- Quality **evals** (rule checks + LLM judge, saved suites, auto-eval)
+- Local web dashboard; opt-in OpenTelemetry export
+- `instrument()` — capture your existing LangChain / OpenAI-SDK calls into the local log
+
+**🔌 Platform & reliability**
+- MCP server (Claude Desktop / Cursor read & write the same memory)
+- Plugin hooks for custom providers; reproducible benchmark (`memstash benchmark`)
+- Library API + 40+ CLI commands; 100% local, single SQLite (WAL); heavy features all opt-in
 
 ```
 ┌──────────────┐     ┌─────────────────────────────┐
