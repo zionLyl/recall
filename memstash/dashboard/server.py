@@ -2,7 +2,7 @@
 
 Single-file FastAPI app, no build step, no external assets. Renders one HTML
 page that reads straight from the local SQLite store. Optional dependency:
-  pip install 'engram-ai[dashboard]'
+  pip install 'memstash[dashboard]'
 """
 
 from __future__ import annotations
@@ -80,7 +80,7 @@ def _page() -> str:
         "<div class='dim'>No turns yet.</div>"
 
     return f"""<!doctype html>
-<html><head><meta charset="utf-8"><title>engram dashboard</title>
+<html><head><meta charset="utf-8"><title>memstash dashboard</title>
 <meta http-equiv="refresh" content="5">
 <style>
   body{{font-family:-apple-system,system-ui,sans-serif;max-width:880px;margin:40px auto;
@@ -107,7 +107,7 @@ def _page() -> str:
         padding:1px 7px;font-size:11px}} .kind.chat{{background:#dbeafe;color:#1e40af}}
 </style></head>
 <body>
-  <h1>🧠 engram</h1>
+  <h1>🧠 memstash</h1>
   <p class="sub">Local AI brain — memory & cost. Data never leaves this machine. <span class="dim">(auto-refreshes)</span></p>
   <div class="cards">
     <div class="card"><div class="n">{s['memory_count']}</div><div class="l">memories</div></div>
@@ -133,11 +133,11 @@ def serve(port: int = 8745) -> None:
     from fastapi import FastAPI
     from fastapi.responses import HTMLResponse
 
-    app = FastAPI(title="engram dashboard")
+    app = FastAPI(title="memstash dashboard")
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> str:
         return _page()
 
-    print(f"engram dashboard → http://127.0.0.1:{port}")
+    print(f"memstash dashboard → http://127.0.0.1:{port}")
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")

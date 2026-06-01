@@ -4,7 +4,7 @@ import json
 import tempfile
 from pathlib import Path
 
-from engram.pricing import _candidates, estimate_cost, price_of
+from memstash.pricing import _candidates, estimate_cost, price_of
 
 
 def test_provider_prefixed_names_resolve():
@@ -26,7 +26,7 @@ def test_unknown_is_zero():
 
 
 def test_inline_override(monkeypatch):
-    monkeypatch.setenv("ENGRAM_PRICING", json.dumps({"my-model": {"input": 1.0, "output": 2.0}}))
+    monkeypatch.setenv("MEMSTASH_PRICING", json.dumps({"my-model": {"input": 1.0, "output": 2.0}}))
     assert estimate_cost("my-model", 1_000_000, 1_000_000) == 3.0
 
 
@@ -34,7 +34,7 @@ def test_file_override(monkeypatch):
     d = tempfile.mkdtemp()
     p = Path(d) / "prices.json"
     p.write_text(json.dumps({"file-model": {"input": 5.0, "output": 0.0}}))
-    monkeypatch.setenv("ENGRAM_PRICING_FILE", str(p))
+    monkeypatch.setenv("MEMSTASH_PRICING_FILE", str(p))
     assert estimate_cost("file-model", 1_000_000, 0) == 5.0
 
 
@@ -42,6 +42,6 @@ def test_inline_beats_file(monkeypatch):
     d = tempfile.mkdtemp()
     p = Path(d) / "prices.json"
     p.write_text(json.dumps({"m": {"input": 1.0, "output": 1.0}}))
-    monkeypatch.setenv("ENGRAM_PRICING_FILE", str(p))
-    monkeypatch.setenv("ENGRAM_PRICING", json.dumps({"m": {"input": 9.0, "output": 0.0}}))
+    monkeypatch.setenv("MEMSTASH_PRICING_FILE", str(p))
+    monkeypatch.setenv("MEMSTASH_PRICING", json.dumps({"m": {"input": 9.0, "output": 0.0}}))
     assert estimate_cost("m", 1_000_000, 0) == 9.0   # inline override wins

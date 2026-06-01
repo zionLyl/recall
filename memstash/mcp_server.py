@@ -1,22 +1,22 @@
-"""MCP server: expose engram's memory to any MCP-aware agent.
+"""MCP server: expose memstash's memory to any MCP-aware agent.
 
-This turns your local engram brain into a set of MCP tools, so editors and
+This turns your local memstash brain into a set of MCP tools, so editors and
 agents (Claude Desktop, Claude Code, Cursor, etc.) can read and write the *same*
 memory store you use from the CLI — without anything leaving your machine.
 
 Run it:
 
-    engram mcp                      # stdio transport (the usual MCP wiring)
+    memstash mcp                      # stdio transport (the usual MCP wiring)
 
 Then point your MCP client at that command. Example client config entry:
 
     {
       "mcpServers": {
-        "engram": { "command": "engram", "args": ["mcp"] }
+        "memstash": { "command": "memstash", "args": ["mcp"] }
       }
     }
 
-Requires the MCP SDK:  pip install 'engram-ai[mcp]'
+Requires the MCP SDK:  pip install 'memstash[mcp]'
 
 Tools exposed:
   - remember(content, tags?, scope?)        store a memory
@@ -34,21 +34,21 @@ from .core import Recall
 
 
 def build_server(recall: Optional[Recall] = None):
-    """Construct the FastMCP server with engram's tools registered."""
+    """Construct the FastMCP server with memstash's tools registered."""
     try:
         from mcp.server.fastmcp import FastMCP
     except ImportError as e:  # pragma: no cover - depends on optional extra
         raise RuntimeError(
-            "MCP SDK not installed. Run: pip install 'engram-ai[mcp]'"
+            "MCP SDK not installed. Run: pip install 'memstash[mcp]'"
         ) from e
 
     r = recall or Recall()
-    mcp = FastMCP("engram")
+    mcp = FastMCP("memstash")
 
     @mcp.tool()
     def remember(content: str, tags: Optional[list[str]] = None,
                  scope: Optional[str] = None) -> str:
-        """Store a durable memory (fact/preference) in the local engram store.
+        """Store a durable memory (fact/preference) in the local memstash store.
 
         Use this whenever the user states a stable preference or fact worth
         remembering across sessions.

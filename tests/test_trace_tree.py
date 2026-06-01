@@ -3,10 +3,10 @@
 import tempfile
 from pathlib import Path
 
-from engram.adapters.base import Adapter, ChatResult
-from engram.config import Config
-from engram.core import Recall
-from engram.store import Store, Trace
+from memstash.adapters.base import Adapter, ChatResult
+from memstash.config import Config
+from memstash.core import Recall
+from memstash.store import Store, Trace
 
 
 def _tmp_store() -> Store:
@@ -16,7 +16,7 @@ def _tmp_store() -> Store:
 
 def _tmp_recall(monkeypatch) -> Recall:
     d = tempfile.mkdtemp()
-    monkeypatch.setenv("ENGRAM_HOME", d)
+    monkeypatch.setenv("MEMSTASH_HOME", d)
     return Recall(Path(d) / "recall.db", config=Config())
 
 
@@ -27,7 +27,7 @@ class FakeAdapter(Adapter):
 
 
 def _patch_adapter(monkeypatch):
-    import engram.core as core
+    import memstash.core as core
     monkeypatch.setattr(core, "get_adapter", lambda *a, **k: FakeAdapter("fake-model"))
 
 
@@ -64,7 +64,7 @@ def test_extraction_call_is_child_of_chat(monkeypatch):
     r = _tmp_recall(monkeypatch)
     _patch_adapter(monkeypatch)
     r.config.extraction_mode = "llm"
-    import engram.extract_llm as ex
+    import memstash.extract_llm as ex
     monkeypatch.setattr(
         ex, "extract_memories_llm",
         lambda *a, **k: (["I like tea"], ChatResult("[\"I like tea\"]", 4, 3, "fake-model", "fake")),

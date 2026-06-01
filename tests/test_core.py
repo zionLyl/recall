@@ -3,9 +3,9 @@
 import tempfile
 from pathlib import Path
 
-from engram.store import Store, Trace
-from engram.memory import MemoryEngine
-from engram.pricing import estimate_cost
+from memstash.store import Store, Trace
+from memstash.memory import MemoryEngine
+from memstash.pricing import estimate_cost
 
 
 def _tmp_store() -> Store:
@@ -73,7 +73,7 @@ def test_pricing_known_and_prefix():
 
 
 def test_provider_registry_and_base_urls():
-    from engram.adapters import BASE_URLS, KEY_ENV, REGISTRY, get_adapter
+    from memstash.adapters import BASE_URLS, KEY_ENV, REGISTRY, get_adapter
 
     # Broad provider coverage (ECC-style).
     assert len(REGISTRY) >= 20

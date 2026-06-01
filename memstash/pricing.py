@@ -1,6 +1,6 @@
 """Per-million-token pricing (USD) for cost estimation.
 
-These are best-effort defaults; users can override via ENGRAM_PRICING env var
+These are best-effort defaults; users can override via MEMSTASH_PRICING env var
 (JSON mapping model -> {"input": x, "output": y} per 1M tokens). Pricing
 changes often, so this is intentionally easy to override and never blocks a
 call if a model is unknown (cost falls back to 0).
@@ -83,18 +83,18 @@ DEFAULT_PRICING: dict[str, dict[str, float]] = {
 
 def _load_pricing() -> dict[str, dict[str, float]]:
     """Resolve the pricing map. Layering (later wins): built-in defaults →
-    ENGRAM_PRICING_FILE (a JSON file path, LiteLLM model_cost-style) →
-    ENGRAM_PRICING (inline JSON). Both overrides let you keep prices current
+    MEMSTASH_PRICING_FILE (a JSON file path, LiteLLM model_cost-style) →
+    MEMSTASH_PRICING (inline JSON). Both overrides let you keep prices current
     without editing the package."""
     pricing = dict(DEFAULT_PRICING)
-    path = os.environ.get("ENGRAM_PRICING_FILE")
+    path = os.environ.get("MEMSTASH_PRICING_FILE")
     if path:
         try:
             with open(path) as f:
                 pricing.update(json.load(f))
         except (ValueError, TypeError, OSError):
             pass
-    override = os.environ.get("ENGRAM_PRICING")
+    override = os.environ.get("MEMSTASH_PRICING")
     if override:
         try:
             pricing.update(json.loads(override))

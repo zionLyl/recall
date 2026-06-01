@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.15.0]
+
+Renamed to **memstash** (the PyPI name `engram-ai` collided with the existing
+`engram` project). Brand, CLI command, and import are all `memstash` now.
+
+### Changed
+- PyPI package + CLI + import are now **`memstash`** (`pip install memstash`,
+  `memstash ...`, `import memstash`). The `Memstash` class is exported (the
+  `Recall` class name still works as an alias).
+- Env vars are `MEMSTASH_*`; the default store is `~/.memstash/memstash.db`;
+  the adapter entry-point group is `memstash.adapters`.
+- (The unreleased `engram-ai` 0.14.0 was never published; this supersedes it.)
+
 ## [0.14.0]
 
 Rebrand to **Engram**.

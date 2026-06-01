@@ -1,4 +1,4 @@
-"""Reproducible benchmark for engram's memory quality.
+"""Reproducible benchmark for memstash's memory quality.
 
 Deterministic and API-key-free: seeds a fixed memory set into a throwaway store,
 then measures how well retrieval surfaces the *relevant* memories for each query
@@ -7,10 +7,10 @@ keyword/BM25 was used, so the numbers are comparable and not overstated. A small
 extraction check measures how well the heuristic auto-capture catches durable
 facts while ignoring questions.
 
-Run:  engram benchmark
+Run:  memstash benchmark
 
 The headline numbers depend on the active embedding backend — install
-`engram-ai[embeddings]` (or configure an api backend) for the semantic
+`memstash[embeddings]` (or configure an api backend) for the semantic
 numbers; otherwise you get the keyword/BM25 baseline.
 """
 

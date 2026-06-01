@@ -2,7 +2,7 @@
 
 Library usage:
 
-    from engram import Recall
+    from memstash import Recall
 
     r = Recall()
     r.remember("I prefer concise answers")
@@ -35,7 +35,7 @@ class BudgetExceeded(RuntimeError):
 
 @dataclass
 class ChatOutcome:
-    """Result of a chat call, enriched with engram metadata."""
+    """Result of a chat call, enriched with memstash metadata."""
 
     text: str
     model: str
@@ -146,7 +146,7 @@ class Recall:
         if not provider or not model:
             raise ValueError(
                 "No provider/model given and no defaults configured. "
-                "Run `engram config set default_provider ...` or pass them explicitly."
+                "Run `memstash config set default_provider ...` or pass them explicitly."
             )
         scope = scope or self.scope
         memory_limit = (

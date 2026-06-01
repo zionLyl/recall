@@ -1,11 +1,11 @@
 """Minimal library example.
 
-Run after: pip install 'engram-ai[openai]'  (and set OPENAI_API_KEY)
+Run after: pip install 'memstash[openai]'  (and set OPENAI_API_KEY)
 """
 
-from engram import Engram
+from memstash import Memstash
 
-r = Engram()
+r = Memstash()
 
 # Teach it about you (persisted locally, reused across runs and models).
 r.remember("I prefer concise answers with tables", tags=["style"])

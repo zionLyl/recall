@@ -4,9 +4,9 @@ import tempfile
 import time
 from pathlib import Path
 
-import engram.memory as memory_mod
-from engram.memory import MemoryEngine, _rrf
-from engram.store import Store
+import memstash.memory as memory_mod
+from memstash.memory import MemoryEngine, _rrf
+from memstash.store import Store
 
 
 def _tmp_store() -> Store:

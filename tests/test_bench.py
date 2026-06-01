@@ -2,11 +2,11 @@
 
 import tempfile
 
-from engram.bench import (
+from memstash.bench import (
     MEMORIES, QUERIES, _metrics_for, run_all, run_extraction_benchmark,
     run_retrieval_benchmark,
 )
-from engram.config import Config
+from memstash.config import Config
 
 
 def test_metrics_for():
@@ -28,7 +28,7 @@ def test_dataset_relevant_contents_exist():
 
 def test_retrieval_benchmark_runs(monkeypatch):
     d = tempfile.mkdtemp()
-    monkeypatch.setenv("ENGRAM_HOME", d)
+    monkeypatch.setenv("MEMSTASH_HOME", d)
     res = run_retrieval_benchmark(config=Config())
     assert res["mode"] in ("semantic", "keyword")
     assert res["queries"] == len(QUERIES)
@@ -47,6 +47,6 @@ def test_extraction_benchmark():
 
 def test_run_all_shape(monkeypatch):
     d = tempfile.mkdtemp()
-    monkeypatch.setenv("ENGRAM_HOME", d)
+    monkeypatch.setenv("MEMSTASH_HOME", d)
     res = run_all(config=Config())
     assert "retrieval" in res and "extraction" in res

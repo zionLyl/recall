@@ -1,6 +1,6 @@
-"""User configuration for engram.
+"""User configuration for memstash.
 
-Stored as JSON at ~/.engram/config.json (override base with ENGRAM_HOME).
+Stored as JSON at ~/.memstash/config.json (override base with MEMSTASH_HOME).
 Holds defaults so users don't repeat themselves: default provider/model,
 daily budget, auto-memory toggle, active scope, etc.
 """

@@ -1,6 +1,6 @@
-"""Local-first storage layer for engram.
+"""Local-first storage layer for memstash.
 
-Everything lives in a single SQLite file under ~/.engram/engram.db by default.
+Everything lives in a single SQLite file under ~/.memstash/memstash.db by default.
 Two core tables:
   - memories: persistent facts/preferences, optionally with an embedding for
     semantic search.
@@ -23,11 +23,11 @@ from typing import Iterable, Optional
 
 
 def default_db_path() -> Path:
-    """Resolve the DB path. Override with the ENGRAM_HOME env var."""
-    home = os.environ.get("ENGRAM_HOME")
-    base = Path(home) if home else Path.home() / ".engram"
+    """Resolve the DB path. Override with the MEMSTASH_HOME env var."""
+    home = os.environ.get("MEMSTASH_HOME")
+    base = Path(home) if home else Path.home() / ".memstash"
     base.mkdir(parents=True, exist_ok=True)
-    return base / "engram.db"
+    return base / "memstash.db"
 
 
 SCHEMA = """

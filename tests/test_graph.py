@@ -3,8 +3,8 @@
 import tempfile
 from pathlib import Path
 
-from engram.graph_extract import _parse
-from engram.store import Store
+from memstash.graph_extract import _parse
+from memstash.store import Store
 
 
 def _tmp_store() -> Store:

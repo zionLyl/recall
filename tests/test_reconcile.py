@@ -3,14 +3,14 @@
 import tempfile
 from pathlib import Path
 
-from engram.config import Config
-from engram.core import Recall
-from engram.reconcile import _parse_decision
+from memstash.config import Config
+from memstash.core import Recall
+from memstash.reconcile import _parse_decision
 
 
 def _tmp_recall(monkeypatch) -> Recall:
     d = tempfile.mkdtemp()
-    monkeypatch.setenv("ENGRAM_HOME", d)
+    monkeypatch.setenv("MEMSTASH_HOME", d)
     r = Recall(Path(d) / "recall.db", config=Config())
     r.config.memory_ops = "llm"
     r.config.auto_memory = True
@@ -47,7 +47,7 @@ def test_parse_garbage_and_bad_op():
 # ---- apply paths (decision injected, no network) -------------------------
 def _patch_decision(monkeypatch, op, mem_id=None, content=None):
     # _reconcile_capture does `from .reconcile import decide`, so patch it there.
-    import engram.reconcile as rec
+    import memstash.reconcile as rec
     monkeypatch.setattr(rec, "decide",
                         lambda *a, **k: ({"op": op, "id": mem_id, "content": content}, None))
 
@@ -94,7 +94,7 @@ def test_reconcile_noop(monkeypatch):
 
 def test_reconcile_falls_back_to_add_on_error(monkeypatch):
     r = _tmp_recall(monkeypatch)
-    import engram.reconcile as rec
+    import memstash.reconcile as rec
 
     def boom(*a, **k):
         raise RuntimeError("no key")

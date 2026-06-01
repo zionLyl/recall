@@ -16,10 +16,10 @@ class AnthropicAdapter(Adapter):
             import anthropic
         except ImportError as e:
             raise RuntimeError(
-                "anthropic package not installed. Run: pip install 'engram-ai[anthropic]'"
+                "anthropic package not installed. Run: pip install 'memstash[anthropic]'"
             ) from e
         api_key = self.api_key or os.environ.get("ANTHROPIC_API_KEY") or os.environ.get(
-            "ENGRAM_API_KEY"
+            "MEMSTASH_API_KEY"
         )
         return anthropic.Anthropic(api_key=api_key, base_url=self.base_url)
 

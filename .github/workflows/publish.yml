@@ -1,10 +1,10 @@
 name: Publish to PyPI
 
-# Publishes engram-ai to PyPI when a version tag is pushed (e.g. v0.3.0).
+# Publishes memstash to PyPI when a version tag is pushed (e.g. v0.3.0).
 # Uses PyPI Trusted Publishing (OIDC) — no API token stored in the repo.
 #
 # One-time setup on PyPI:
-#   1. Create the project `engram-ai` (or let the first manual upload create it).
+#   1. Create the project `memstash` (or let the first manual upload create it).
 #   2. PyPI → project → Publishing → add a trusted publisher:
 #        owner: zionLyl  repo: recall  workflow: publish.yml  environment: pypi
 #

@@ -1,19 +1,19 @@
-"""engram CLI.
+"""memstash CLI.
 
-  engram init                                 # guided first-time setup
-  engram add "I prefer concise answers"       # store a memory
-  engram search "preferences"                 # semantic/keyword search
-  engram list                                 # list memories (active scope)
-  engram forget 3                             # delete a memory
-  engram chat openai gpt-4o-mini "..."        # chat with memory + tracing
-  engram stats                                # tokens + cost + budget
-  engram recent                               # recent model calls
-  engram models                               # supported providers
-  engram scope work                           # switch active memory scope
-  engram config set daily_budget_usd 1.0      # configure defaults
-  engram export mem.json / engram import ...   # backup & restore
-  engram doctor                               # check which API keys are set
-  engram dashboard                            # local web UI
+  memstash init                                 # guided first-time setup
+  memstash add "I prefer concise answers"       # store a memory
+  memstash search "preferences"                 # semantic/keyword search
+  memstash list                                 # list memories (active scope)
+  memstash forget 3                             # delete a memory
+  memstash chat openai gpt-4o-mini "..."        # chat with memory + tracing
+  memstash stats                                # tokens + cost + budget
+  memstash recent                               # recent model calls
+  memstash models                               # supported providers
+  memstash scope work                           # switch active memory scope
+  memstash config set daily_budget_usd 1.0      # configure defaults
+  memstash export mem.json / memstash import ...   # backup & restore
+  memstash doctor                               # check which API keys are set
+  memstash dashboard                            # local web UI
 """
 
 from __future__ import annotations
@@ -84,7 +84,7 @@ def _parse_when(s: str) -> float:
 def init():
     """Guided first-time setup: pick a default model and detect API keys."""
     cfg = Config.load()
-    console.print("[bold]🧠 engram setup[/bold]\n")
+    console.print("[bold]🧠 memstash setup[/bold]\n")
 
     available = [p for p in sorted(REGISTRY) if os.environ.get(KEY_ENV.get(p, ""))]
     ollama = _ollama_running()
@@ -113,8 +113,8 @@ def init():
     cfg.daily_budget_usd = float(budget)
     cfg.save()
     console.print(f"\n[green]✓[/green] Saved to {config_path()}")
-    console.print("Try: [cyan]engram add \"I prefer concise answers\"[/cyan] then "
-                  "[cyan]engram chat \"hi\"[/cyan]")
+    console.print("Try: [cyan]memstash add \"I prefer concise answers\"[/cyan] then "
+                  "[cyan]memstash chat \"hi\"[/cyan]")
 
 
 @app.command()
@@ -125,10 +125,10 @@ def doctor():
     table.add_column("Key env", style="dim")
     table.add_column("Status")
     for name in sorted(REGISTRY):
-        env = KEY_ENV.get(name, "ENGRAM_API_KEY")
+        env = KEY_ENV.get(name, "MEMSTASH_API_KEY")
         if name in ("ollama", "lmstudio"):
             status = "[blue]local (no key)[/blue]"
-        elif os.environ.get(env) or os.environ.get("ENGRAM_API_KEY"):
+        elif os.environ.get(env) or os.environ.get("MEMSTASH_API_KEY"):
             status = "[green]✓ ready[/green]"
         else:
             status = "[dim]— not set[/dim]"
@@ -197,7 +197,7 @@ def list_memories(
         mems = r.store.all_memories(scope=scope)
         title_suffix = "" if all_scopes else f" · scope='{r.scope}'"
     if not mems:
-        msg = f"No memories valid as of {at}." if at else f"No memories in '{r.scope}'. Add one: engram add \"...\""
+        msg = f"No memories valid as of {at}." if at else f"No memories in '{r.scope}'. Add one: memstash add \"...\""
         console.print(f"[yellow]{msg}[/yellow]")
         r.close()
         return
@@ -326,7 +326,7 @@ def dedupe(
     if not r.memory.has_embeddings:
         console.print(
             "[yellow]Similarity dedupe needs embeddings.[/yellow] "
-            "Install: pip install 'engram-ai[embeddings]'", markup=False,
+            "Install: pip install 'memstash[embeddings]'", markup=False,
         )
         r.close()
         raise typer.Exit(1)
@@ -505,8 +505,8 @@ def chat(
     """Chat with any model — memory injected, cost & tokens traced automatically.
 
     Forms:
-      engram chat <provider> <model> "prompt"
-      engram chat "prompt"                  (uses configured defaults)
+      memstash chat <provider> <model> "prompt"
+      memstash chat "prompt"                  (uses configured defaults)
     """
     r = _r()
     repl = False
@@ -556,7 +556,7 @@ def stats():
     """Show token usage, cost, and budget."""
     r = _r()
     s = r.stats()
-    console.print(f"[bold]engram stats[/bold]  [dim](v{__version__})[/dim]\n")
+    console.print(f"[bold]memstash stats[/bold]  [dim](v{__version__})[/dim]\n")
     console.print(f"Memories stored : [cyan]{s['memory_count']}[/cyan]")
     console.print(f"Model calls     : [cyan]{s['calls']}[/cyan]")
     console.print(
@@ -651,15 +651,15 @@ def trace(limit: int = typer.Option(10, "--limit", "-n", help="How many recent t
 
 @app.command()
 def pricing(model: str = typer.Argument(None, help="Model to look up (omit to list the table).")):
-    """Show per-1M-token pricing. Override with ENGRAM_PRICING_FILE (a JSON file)
-    or ENGRAM_PRICING (inline JSON) — no code edits needed."""
+    """Show per-1M-token pricing. Override with MEMSTASH_PRICING_FILE (a JSON file)
+    or MEMSTASH_PRICING (inline JSON) — no code edits needed."""
     from .pricing import _load_pricing, price_of
 
     if model:
         entry = price_of(model)
         if entry is None:
             console.print(f"[yellow]No price for '{model}' — it traces at $0. "
-                          f"Add it via ENGRAM_PRICING_FILE.[/yellow]", markup=False)
+                          f"Add it via MEMSTASH_PRICING_FILE.[/yellow]", markup=False)
         else:
             console.print(f"[cyan]{model}[/cyan]: ${entry['input']}/1M in · ${entry['output']}/1M out", markup=False)
         return
@@ -674,7 +674,7 @@ def pricing(model: str = typer.Argument(None, help="Model to look up (omit to li
 
 @app.command("eval")
 def eval_cmd(
-    trace_id: int = typer.Argument(..., help="Trace ID to evaluate (see `engram recent`)."),
+    trace_id: int = typer.Argument(..., help="Trace ID to evaluate (see `memstash recent`)."),
     contains: str = typer.Option(None, "--contains", help="Reply must contain this text."),
     not_contains: str = typer.Option(None, "--not-contains", help="Reply must NOT contain this text."),
     regex: str = typer.Option(None, "--regex", help="Reply must match this regex."),
@@ -719,7 +719,7 @@ def evals(trace_id: int = typer.Option(None, "--trace", help="Filter to one trac
     r = _r()
     rows = r.evals_for(trace_id) if trace_id else r.store.recent_evals()
     if not rows:
-        console.print("[yellow]No evals yet. Run: engram eval <trace_id> --judge \"...\"[/yellow]")
+        console.print("[yellow]No evals yet. Run: memstash eval <trace_id> --judge \"...\"[/yellow]")
         r.close()
         return
     table = Table(title="Evals")
@@ -767,7 +767,7 @@ def suite_list():
     r = _r()
     suites = r.store.list_suites()
     if not suites:
-        console.print("[yellow]No eval suites. Save one: engram eval-suite save <name> --judge \"...\"[/yellow]")
+        console.print("[yellow]No eval suites. Save one: memstash eval-suite save <name> --judge \"...\"[/yellow]")
         r.close()
         return
     table = Table(title="Eval suites")
@@ -797,7 +797,7 @@ def benchmark(k: int = typer.Option(5, "--k", help="Retrieval cutoff for recall@
     from .bench import run_all
     res = run_all(k=k)
     rt, ex = res["retrieval"], res["extraction"]
-    console.print(f"[bold]engram benchmark[/bold]  [dim](v{__version__})[/dim]\n")
+    console.print(f"[bold]memstash benchmark[/bold]  [dim](v{__version__})[/dim]\n")
     console.print(f"Retrieval backend : [cyan]{rt['mode']}[/cyan]  "
                   f"[dim]({rt['queries']} queries, k={rt['k']})[/dim]")
     table = Table(title="Retrieval quality")
@@ -808,14 +808,14 @@ def benchmark(k: int = typer.Option(5, "--k", help="Retrieval cutoff for recall@
     table.add_row(f"precision@{k}", f"{rt['precision_at_k']:.3f}")
     table.add_row("MRR", f"{rt['mrr']:.3f}")
     console.print(table)
-    console.print(f"Extraction        : [cyan]fact-engram {ex['fact_recall']:.3f}[/cyan] "
+    console.print(f"Extraction        : [cyan]fact-memstash {ex['fact_recall']:.3f}[/cyan] "
                   f"[dim]({ex['cases']} cases, {ex['false_captures']} false capture(s))[/dim]")
     console.print(
         f"\n[dim]cite: recall@1={rt['recall_at_1']:.2f}, MRR={rt['mrr']:.2f} "
         f"({rt['mode']}, {rt['queries']} queries)[/dim]"
     )
     if rt["mode"] == "keyword":
-        console.print("[dim]tip: install 'engram-ai[embeddings]' (or set an api backend) "
+        console.print("[dim]tip: install 'memstash[embeddings]' (or set an api backend) "
                       "for the semantic numbers.[/dim]", markup=False)
 
 
@@ -827,10 +827,10 @@ def models():
     table.add_column("API key env var", style="green")
     table.add_column("Default base URL", style="dim")
     for name in sorted(REGISTRY):
-        table.add_row(name, KEY_ENV.get(name, "ENGRAM_API_KEY"), BASE_URLS.get(name, "(provider default)"))
+        table.add_row(name, KEY_ENV.get(name, "MEMSTASH_API_KEY"), BASE_URLS.get(name, "(provider default)"))
     console.print(table)
     console.print(
-        "\n[dim]Set the matching env var, or ENGRAM_API_KEY as a fallback. "
+        "\n[dim]Set the matching env var, or MEMSTASH_API_KEY as a fallback. "
         "ollama / lmstudio run locally and usually need no key.[/dim]"
     )
 
@@ -877,7 +877,7 @@ def config_show():
 
 @config_app.command("set")
 def config_set(key: str = typer.Argument(...), value: str = typer.Argument(...)):
-    """Set a config value, e.g. `engram config set daily_budget_usd 1.0`."""
+    """Set a config value, e.g. `memstash config set daily_budget_usd 1.0`."""
     cfg = Config.load()
     cfg.set(key, value)
     cfg.save()
@@ -909,7 +909,7 @@ def prompt_list():
     r = _r()
     rows = r.store.list_prompts()
     if not rows:
-        console.print("[yellow]No templates. Save one: engram prompt save <name> \"...\"[/yellow]")
+        console.print("[yellow]No templates. Save one: memstash prompt save <name> \"...\"[/yellow]")
         r.close()
         return
     table = Table(title="Prompt templates")
@@ -960,38 +960,38 @@ def prompt_use(
 # ---- dashboard / version ------------------------------------------------
 @app.command()
 def dashboard(port: int = typer.Option(8745, "--port", "-p")):
-    """Launch the local web dashboard (requires: pip install 'engram-ai[dashboard]')."""
+    """Launch the local web dashboard (requires: pip install 'memstash[dashboard]')."""
     try:
         from .dashboard.server import serve
     except ImportError as e:
         console.print(f"[red]Dashboard deps missing:[/red] {e}", markup=False)
-        console.print("Install with: pip install 'engram-ai[dashboard]'", markup=False)
+        console.print("Install with: pip install 'memstash[dashboard]'", markup=False)
         raise typer.Exit(1)
     serve(port=port)
 
 
 @app.command()
 def mcp():
-    """Run engram as an MCP server (stdio) so any agent can read/write memory.
+    """Run memstash as an MCP server (stdio) so any agent can read/write memory.
 
     Wire it into an MCP client with:
-      {"mcpServers": {"engram": {"command": "engram", "args": ["mcp"]}}}
+      {"mcpServers": {"memstash": {"command": "memstash", "args": ["mcp"]}}}
 
-    Requires: pip install 'engram-ai[mcp]'
+    Requires: pip install 'memstash[mcp]'
     """
     try:
         from .mcp_server import serve
         serve()
     except (ImportError, RuntimeError) as e:
         console.print(f"[red]MCP unavailable:[/red] {e}", markup=False)
-        console.print("Install with: pip install 'engram-ai[mcp]'", markup=False)
+        console.print("Install with: pip install 'memstash[mcp]'", markup=False)
         raise typer.Exit(1)
 
 
 @app.command()
 def version():
     """Print version."""
-    console.print(f"engram {__version__}")
+    console.print(f"memstash {__version__}")
 
 
 if __name__ == "__main__":

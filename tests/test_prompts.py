@@ -3,8 +3,8 @@
 import tempfile
 from pathlib import Path
 
-from engram.prompts import parse_vars, render
-from engram.store import Store
+from memstash.prompts import parse_vars, render
+from memstash.store import Store
 
 
 def _tmp_store() -> Store:

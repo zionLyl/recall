@@ -1,22 +1,22 @@
-"""Capture *other* libraries' LLM calls into engram's local SQLite.
+"""Capture *other* libraries' LLM calls into memstash's local SQLite.
 
 Phoenix/Langfuse can observe calls made by LangChain, LlamaIndex, the OpenAI SDK,
-etc. via OpenInference/OpenTelemetry instrumentation. `engram.instrument()` makes
-engram a *local sink* for those same spans: any OpenInference LLM span produced
-in your process is written to `~/.engram/engram.db` as a trace (model, tokens,
-cost, latency) — visible in `engram recent` / `engram stats` / `engram trace`.
+etc. via OpenInference/OpenTelemetry instrumentation. `memstash.instrument()` makes
+memstash a *local sink* for those same spans: any OpenInference LLM span produced
+in your process is written to `~/.memstash/memstash.db` as a trace (model, tokens,
+cost, latency) — visible in `memstash recent` / `memstash stats` / `memstash trace`.
 
 Usage (in your app):
 
-    import engram
-    engram.instrument()                 # local sink, no server
+    import memstash
+    memstash.instrument()                 # local sink, no server
 
     # then instrument whatever you use, e.g.:
     from openinference.instrumentation.openai import OpenAIInstrumentor
     OpenAIInstrumentor().instrument()
-    # ...your normal OpenAI / LangChain / LlamaIndex code now lands in engram.
+    # ...your normal OpenAI / LangChain / LlamaIndex code now lands in memstash.
 
-Requires the OTel SDK: `pip install 'engram-ai[otel]'`. `instrument()` also
+Requires the OTel SDK: `pip install 'memstash[otel]'`. `instrument()` also
 best-effort enables the OpenAI / LangChain OpenInference instrumentors if their
 packages are installed.
 """
@@ -30,7 +30,7 @@ from .store import Trace
 
 
 def span_to_trace(attrs: dict, name: str = "", duration_ms: float = 0) -> Optional[Trace]:
-    """Map an OpenInference LLM span's attributes to a engram Trace, or None if
+    """Map an OpenInference LLM span's attributes to a memstash Trace, or None if
     the span isn't an LLM call."""
     kind = str(attrs.get("openinference.span.kind", "")).upper()
     if kind != "LLM":
@@ -72,7 +72,7 @@ def _record_spans(spans, store) -> int:
 
 
 def instrument(db_path=None, auto: bool = True):
-    """Install engram as a local OpenInference span sink. Returns the Store the
+    """Install memstash as a local OpenInference span sink. Returns the Store the
     spans write to. Best-effort enables OpenAI/LangChain instrumentors when `auto`
     and their packages are present."""
     try:
@@ -83,7 +83,7 @@ def instrument(db_path=None, auto: bool = True):
         )
     except ImportError as e:
         raise RuntimeError(
-            "instrument() needs the OTel SDK: pip install 'engram-ai[otel]'"
+            "instrument() needs the OTel SDK: pip install 'memstash[otel]'"
         ) from e
 
     from .store import Store

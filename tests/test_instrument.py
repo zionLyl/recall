@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from engram.instrument import _record_spans, span_to_trace
-from engram.store import Store
+from memstash.instrument import _record_spans, span_to_trace
+from memstash.store import Store
 
 
 def _tmp_store() -> Store:
@@ -74,7 +74,7 @@ def test_record_spans_writes_only_llm():
 def test_instrument_end_to_end():
     pytest.importorskip("opentelemetry")
     from opentelemetry import trace
-    from engram.instrument import instrument
+    from memstash.instrument import instrument
 
     d = tempfile.mkdtemp()
     db = Path(d) / "recall.db"

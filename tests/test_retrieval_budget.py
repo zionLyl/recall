@@ -5,11 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from engram.adapters.base import Adapter, ChatResult
-from engram.config import Config
-from engram.core import BudgetExceeded, Recall
-from engram.memory import _rrf
-from engram.store import Store, Trace
+from memstash.adapters.base import Adapter, ChatResult
+from memstash.config import Config
+from memstash.core import BudgetExceeded, Recall
+from memstash.memory import _rrf
+from memstash.store import Store, Trace
 
 
 def _tmp_store() -> Store:
@@ -19,7 +19,7 @@ def _tmp_store() -> Store:
 
 def _tmp_recall(monkeypatch) -> Recall:
     d = tempfile.mkdtemp()
-    monkeypatch.setenv("ENGRAM_HOME", d)
+    monkeypatch.setenv("MEMSTASH_HOME", d)
     return Recall(Path(d) / "recall.db", config=Config())
 
 
@@ -93,7 +93,7 @@ class FakeAdapter(Adapter):
 
 
 def _patch_adapter(monkeypatch):
-    import engram.core as core
+    import memstash.core as core
     monkeypatch.setattr(core, "get_adapter", lambda *a, **k: FakeAdapter("fake-model"))
 
 

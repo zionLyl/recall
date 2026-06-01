@@ -16,10 +16,10 @@ class OpenAIAdapter(Adapter):
             from openai import OpenAI
         except ImportError as e:
             raise RuntimeError(
-                "openai package not installed. Run: pip install 'engram-ai[openai]'"
+                "openai package not installed. Run: pip install 'memstash[openai]'"
             ) from e
         api_key = self.api_key or os.environ.get("OPENAI_API_KEY") or os.environ.get(
-            "ENGRAM_API_KEY"
+            "MEMSTASH_API_KEY"
         )
         return OpenAI(api_key=api_key, base_url=self.base_url)
 

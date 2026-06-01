@@ -3,7 +3,7 @@
 import tempfile
 from pathlib import Path
 
-from engram.store import Store
+from memstash.store import Store
 
 
 def _tmp_store() -> Store:

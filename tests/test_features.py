@@ -4,15 +4,15 @@ budget, export/import."""
 import tempfile
 from pathlib import Path
 
-from engram.config import Config
-from engram.core import Recall
-from engram.extract import extract_memories
-from engram.store import Store, Trace
+from memstash.config import Config
+from memstash.core import Recall
+from memstash.extract import extract_memories
+from memstash.store import Store, Trace
 
 
 def _tmp_recall(monkeypatch):
     d = tempfile.mkdtemp()
-    monkeypatch.setenv("ENGRAM_HOME", d)
+    monkeypatch.setenv("MEMSTASH_HOME", d)
     return Recall(Path(d) / "recall.db", config=Config())
 
 
@@ -59,7 +59,7 @@ def test_dedupe(monkeypatch):
 # ---- config --------------------------------------------------------------
 def test_config_roundtrip(monkeypatch):
     d = tempfile.mkdtemp()
-    monkeypatch.setenv("ENGRAM_HOME", d)
+    monkeypatch.setenv("MEMSTASH_HOME", d)
     cfg = Config()
     cfg.set("daily_budget_usd", "2.5")
     cfg.set("auto_memory", "false")
@@ -98,7 +98,7 @@ def test_export_import(monkeypatch):
 
     # import into a fresh store
     d2 = tempfile.mkdtemp()
-    monkeypatch.setenv("ENGRAM_HOME", d2)
+    monkeypatch.setenv("MEMSTASH_HOME", d2)
     r2 = Recall(Path(d2) / "recall.db", config=Config())
     imported = r2.import_memories(out)
     assert imported == 2
@@ -108,7 +108,7 @@ def test_export_import(monkeypatch):
 # ---- migration safety ----------------------------------------------------
 def test_migration_idempotent(monkeypatch):
     d = tempfile.mkdtemp()
-    monkeypatch.setenv("ENGRAM_HOME", d)
+    monkeypatch.setenv("MEMSTASH_HOME", d)
     p = Path(d) / "recall.db"
     s1 = Store(p)
     s1.add_memory("x")

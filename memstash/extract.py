@@ -1,6 +1,6 @@
 """Heuristic memory extraction from a user message.
 
-After a chat, engram can auto-capture durable facts/preferences the user stated
+After a chat, memstash can auto-capture durable facts/preferences the user stated
 about themselves — without an extra LLM call. This is intentionally
 conservative: it only grabs first-person statements that look like stable
 preferences or facts, so the memory store stays signal-rich.
