@@ -1,5 +1,7 @@
 # 🧠 Memstash
 
+**English** | [简体中文](README.zh-CN.md)
+
 **Persistent memory + full cost/observability for any LLM — local-first, in one SQLite file.**
 No server, no account, no telemetry. Your data never leaves your machine.
 
@@ -363,7 +365,7 @@ memstash import my-brain.json
 
 ## Where is my data?
 
-A single SQLite file at `~/.memstash/recall.db` (override with `MEMSTASH_HOME`).
+A single SQLite file at `~/.memstash/memstash.db` (override with `MEMSTASH_HOME`).
 That's it. No accounts, no servers, no telemetry. Back it up, sync it, delete
 it — it's yours.
 
@@ -382,9 +384,9 @@ memstash benchmark
 ```
 
 It seeds a fixed, hand-labeled memory set and measures retrieval quality
-(recall@1, recall@k, precision@k, MRR) plus heuristic-extraction fact-memstash —
+(recall@1, recall@k, precision@k, MRR) plus heuristic-extraction fact-recall —
 honestly labeling whether it ran in **semantic** or **keyword/BM25** mode.
-Keyword baseline: `recall@1 ≈ 0.50, MRR ≈ 0.69`, extraction fact-memstash `1.00`
+Keyword baseline: `recall@1 ≈ 0.50, MRR ≈ 0.69`, extraction fact-recall `1.00`
 with `0` false captures; installing `[embeddings]` (or an api backend) scores
 higher. Numbers are deterministic, so you can track them across changes.
 
