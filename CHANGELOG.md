@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.15.1]
+
+### Changed
+- Project URLs point to the renamed GitHub repo `zionLyl/memstash` (was
+  `zionLyl/recall`; GitHub redirects the old links).
+
 ## [0.15.0]
 
 Renamed to **memstash** (the PyPI name `engram-ai` collided with the existing
