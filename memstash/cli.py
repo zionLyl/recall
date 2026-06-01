@@ -306,6 +306,46 @@ def prune(
 
 
 @app.command()
+def quarantine(all_scopes: bool = typer.Option(False, "--all", help="Across all scopes.")):
+    """List memories held by the write firewall for review (not injected)."""
+    r = _r()
+    mems = r.quarantined(scope=None if all_scopes else r.scope)
+    if not mems:
+        console.print("[green]Nothing quarantined.[/green]")
+        r.close()
+        return
+    from rich.markup import escape
+    table = Table(title=f"Quarantined ({len(mems)}) — review with approve/reject")
+    table.add_column("ID", style="cyan", justify="right")
+    table.add_column("Source", style="dim")
+    table.add_column("Memory")
+    table.add_column("Scope", style="blue")
+    for m in mems:
+        table.add_row(str(m.id), m.source, escape(m.content), m.scope)
+    console.print(table)
+    console.print("[dim]memstash approve <id>  ·  memstash reject <id>[/dim]")
+    r.close()
+
+
+@app.command()
+def approve(memory_id: int = typer.Argument(..., help="Quarantined memory ID to approve.")):
+    """Approve a quarantined memory — make it active and injectable."""
+    r = _r()
+    ok = r.approve(memory_id)
+    console.print(f"[green]✓[/green] Approved #{memory_id}" if ok else f"[red]✗[/red] #{memory_id} not in quarantine")
+    r.close()
+
+
+@app.command()
+def reject(memory_id: int = typer.Argument(..., help="Quarantined memory ID to reject (delete).")):
+    """Reject a quarantined memory — delete it."""
+    r = _r()
+    ok = r.reject(memory_id)
+    console.print(f"[green]✓[/green] Rejected #{memory_id}" if ok else f"[red]✗[/red] #{memory_id} not in quarantine")
+    r.close()
+
+
+@app.command()
 def edit(
     memory_id: int = typer.Argument(..., help="Memory ID to edit."),
     content: str = typer.Argument(None, help="New content (omit to only change tags)."),
@@ -880,7 +920,8 @@ def config_show():
     for k in ("default_provider", "default_model", "daily_budget_usd",
               "budget_enforce", "auto_memory", "extraction_mode", "extraction_model",
               "memory_ops", "graph_extract", "memory_inject_limit", "memory_min_score",
-              "scope_auto", "embedding_backend", "embedding_model", "embedding_base_url",
+              "scope_auto", "firewall_mode", "firewall_trusted_sources",
+              "embedding_backend", "embedding_model", "embedding_base_url",
               "dedupe_similarity", "recency_weight", "graph_weight", "stream",
               "otel_export", "auto_eval_suite", "active_scope"):
         table.add_row(k, str(getattr(cfg, k)))

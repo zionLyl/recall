@@ -139,9 +139,12 @@ def _rrf(
 
 
 class MemoryEngine:
-    def __init__(self, store: Store, embed_cfg: Optional[EmbedConfig] = None):
+    def __init__(self, store: Store, embed_cfg: Optional[EmbedConfig] = None, firewall=None):
+        from .firewall import FirewallConfig
+
         self.store = store
         self.embed_cfg = embed_cfg or EmbedConfig()
+        self.firewall = firewall or FirewallConfig()
 
     @property
     def has_embeddings(self) -> bool:
@@ -193,10 +196,14 @@ class MemoryEngine:
             match = self._find_similar(embedding, scope, similarity_threshold)
             if match is not None:
                 return None
+        # Write firewall: untrusted-source or injection-flagged content is
+        # quarantined (stored inactive, never injected) until approved.
+        from .firewall import evaluate
+        quarantine, _reason = evaluate(content, source, self.firewall)
         return self.store.add_memory(
             content, tags=tags, embedding=embedding, scope=scope, source=source,
             source_trace=source_trace, mem_type=mem_type, confidence=confidence,
-            source_ref=source_ref,
+            source_ref=source_ref, quarantined=quarantine,
         )
 
     def edit(

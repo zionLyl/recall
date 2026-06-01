@@ -339,6 +339,7 @@ memstash import my-brain.json
 | `memstash edit <id> ["new content"] [--tags ...]` | Edit a memory in place |
 | `memstash forget <id> [--soft]` | Delete (or soft-forget) a memory |
 | `memstash prune [--older-than DAYS] [--unused] [--all]` | Soft-forget stale memories |
+| `memstash quarantine` / `approve <id>` / `reject <id>` | Review firewall-held (untrusted) writes |
 | `memstash dedupe [--threshold 0.9] [--all] [--dry-run]` | Merge near-duplicate memories |
 | `memstash graph [entity] [--add "s\|p\|o"]` | View / add entity relationships |
 | `memstash scope [name]` | Switch / list scopes |
@@ -385,6 +386,12 @@ honestly labeling whether it ran in **semantic** or **keyword/BM25** mode.
 Keyword baseline: `recall@1 ≈ 0.50, MRR ≈ 0.69`, extraction fact-recall `1.00`
 with `0` false captures; installing `[embeddings]` (or an api backend) scores
 higher. Numbers are deterministic, so you can track them across changes.
+
+## How memory works
+
+See [MEMORY.md](MEMORY.md) for exactly what's stored, how recall / forgetting /
+conflict resolution / the write firewall work, and how to delete, export, or
+migrate your data.
 
 ## Roadmap
 

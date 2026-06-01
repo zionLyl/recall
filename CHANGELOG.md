@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.18.0]
+
+Write firewall (memory-poisoning protection) + a memory-model doc.
+
+### Added
+- **Write firewall**: untrusted writes are quarantined (stored inactive, **never
+  injected** into prompts) until you review them. Trusted sources (`manual`,
+  `auto`) pass; untrusted origins (`web`/`tool`/`external`) are quarantined;
+  other sources are scanned for prompt-injection patterns (EN + 中文) and
+  quarantined if flagged. `memstash quarantine` → `approve <id>` / `reject <id>`.
+  Config: `firewall_mode` (quarantine/warn/off, default quarantine),
+  `firewall_trusted_sources`. New `firewall.py`; new `quarantined` column
+  (migrated). Mitigates the prompt-injection-via-memory risk that grows with
+  long-term memory.
+- **MEMORY.md**: a precise "how memory works" doc — what's stored, how recall /
+  forgetting / conflict resolution / the firewall work, and how to delete /
+  export / migrate. Linked from the README.
+
 ## [0.17.0]
 
 Typed memory — for any agent, not just chat.

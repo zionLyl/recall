@@ -51,7 +51,9 @@ CREATE TABLE IF NOT EXISTS memories (
     -- typed memory: kind of memory, how sure we are, and where it came from
     mem_type   TEXT NOT NULL DEFAULT 'note',
     confidence REAL NOT NULL DEFAULT 1.0,
-    source_ref TEXT
+    source_ref TEXT,
+    -- write firewall: held for review (active=0) instead of injected
+    quarantined INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS traces (
@@ -137,6 +139,7 @@ MIGRATIONS = [
     "ALTER TABLE memories ADD COLUMN mem_type TEXT NOT NULL DEFAULT 'note'",
     "ALTER TABLE memories ADD COLUMN confidence REAL NOT NULL DEFAULT 1.0",
     "ALTER TABLE memories ADD COLUMN source_ref TEXT",
+    "ALTER TABLE memories ADD COLUMN quarantined INTEGER NOT NULL DEFAULT 0",
 ]
 
 
@@ -156,6 +159,7 @@ class Memory:
     mem_type: str = "note"
     confidence: float = 1.0
     source_ref: Optional[str] = None
+    quarantined: int = 0
 
 
 @dataclass
@@ -249,15 +253,19 @@ class Store:
         mem_type: str = "note",
         confidence: float = 1.0,
         source_ref: Optional[str] = None,
+        quarantined: bool = False,
     ) -> int:
         now = time.time()
         tag_str = ",".join(sorted(set(t.strip() for t in (tags or []) if t.strip())))
+        # Quarantined writes are inactive, so retrieval (active=1) never injects
+        # them until they're approved.
+        active = 0 if quarantined else 1
         cur = self.conn.execute(
             "INSERT INTO memories (content, tags, scope, source, embedding, created_at, "
-            "updated_at, valid_from, active, source_trace, mem_type, confidence, source_ref) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)",
-            (content, tag_str, scope, source, embedding, now, now, now, source_trace,
-             mem_type or "note", confidence, source_ref),
+            "updated_at, valid_from, active, source_trace, mem_type, confidence, source_ref, "
+            "quarantined) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (content, tag_str, scope, source, embedding, now, now, now, active, source_trace,
+             mem_type or "note", confidence, source_ref, 1 if quarantined else 0),
         )
         self.conn.commit()
         return int(cur.lastrowid)
@@ -279,6 +287,7 @@ class Store:
             mem_type=r["mem_type"] if "mem_type" in keys else "note",
             confidence=r["confidence"] if "confidence" in keys else 1.0,
             source_ref=r["source_ref"] if "source_ref" in keys else None,
+            quarantined=r["quarantined"] if "quarantined" in keys else 0,
         )
 
     def all_memories(
@@ -344,6 +353,34 @@ class Store:
         cur = self.conn.execute(
             "UPDATE memories SET active = 0, valid_to = ? WHERE id = ? AND active = 1",
             (time.time(), memory_id),
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    # ---- write firewall -------------------------------------------------
+    def quarantined_memories(self, scope: Optional[str] = None) -> list[Memory]:
+        """Memories held by the firewall for review (not injected)."""
+        sql = "SELECT * FROM memories WHERE quarantined = 1"
+        params: list = []
+        if scope:
+            sql += " AND scope = ?"
+            params.append(scope)
+        sql += " ORDER BY created_at DESC"
+        return [self._row_to_memory(r) for r in self.conn.execute(sql, params).fetchall()]
+
+    def approve(self, memory_id: int) -> bool:
+        """Release a quarantined memory: make it active and injectable."""
+        cur = self.conn.execute(
+            "UPDATE memories SET active = 1, quarantined = 0 WHERE id = ? AND quarantined = 1",
+            (memory_id,),
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def reject(self, memory_id: int) -> bool:
+        """Delete a quarantined memory (rejected as poison/noise)."""
+        cur = self.conn.execute(
+            "DELETE FROM memories WHERE id = ? AND quarantined = 1", (memory_id,)
         )
         self.conn.commit()
         return cur.rowcount > 0

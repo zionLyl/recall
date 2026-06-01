@@ -64,9 +64,15 @@ class ChatOutcome:
 
 class Recall:
     def __init__(self, db_path: Optional[Path] = None, config: Optional[Config] = None):
+        from .firewall import FirewallConfig
+
         self.store = Store(db_path)
         self.config = config or Config.load()
-        self.memory = MemoryEngine(self.store, embed_cfg=self._embed_cfg())
+        fw = FirewallConfig.from_strings(
+            getattr(self.config, "firewall_mode", "quarantine"),
+            getattr(self.config, "firewall_trusted_sources", "manual,auto"),
+        )
+        self.memory = MemoryEngine(self.store, embed_cfg=self._embed_cfg(), firewall=fw)
 
     def _embed_cfg(self) -> EmbedConfig:
         c = self.config
@@ -157,6 +163,16 @@ class Recall:
         if soft:
             return self.store.soft_delete(memory_id)
         return self.store.delete_memory(memory_id)
+
+    # ---- write firewall -------------------------------------------------
+    def quarantined(self, scope: Optional[str] = None):
+        return self.store.quarantined_memories(scope=scope or self.scope)
+
+    def approve(self, memory_id: int) -> bool:
+        return self.store.approve(memory_id)
+
+    def reject(self, memory_id: int) -> bool:
+        return self.store.reject(memory_id)
 
     def prune(
         self,
