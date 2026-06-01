@@ -18,26 +18,20 @@ pipx install 'memstash[all]'      # 或:pip install 'memstash[openai]'
 
 ---
 
-用大模型有两个长期痛点:
+Memstash 给任意大模型加上**持久记忆**,并记录**每次调用花了多少钱** —— 全在一个本地 SQLite 文件里。
 
-1. **它会忘了你。** 换个模型、开个新会话,你就得把自己重新解释一遍。
-2. **你看不见它在干什么。** 哪个模型?多少 token?这一通花了多少钱?
+把你的偏好和事实教给它一次,之后它会自动把相关的那些注入到你的提示词里,跨会话、跨模型都有效。每次调用的 token、成本、延迟都会被记录,让你看清——并能设上限——自己的花费。它完全跑在你本机:不用服务器、不用账号,什么都不离开你的电脑。
 
-**Memstash 在本地一次解决这两件事** —— 一个 SQLite 文件同时存你的记忆 *和* 每次调用的 token/成本/延迟。GPT → Claude → DeepSeek → Qwen 随便换,记忆和账单都跟着你走。不用跑服务器、不用注册账号,什么都不离开你的电脑。
+### 它能帮你做什么
 
-### 为什么是 Memstash
+- 给聊天机器人或 agent 一份**长期记忆**,重启、换模型都不丢。
+- 把上下文从 GPT → Claude → 本地 Ollama **一路带着走,不用重新解释自己**。
+- **看清并控制 token 花费** —— 按调用、按模型、按天。
+- 让你的**笔记/文档可被助手检索**(`memstash ingest file.md`)。
+- 让 **Claude Desktop / Cursor** 通过 MCP 读写同一份记忆。
+- 把**现有 LangChain / OpenAI-SDK 应用**的调用收进本地日志。
 
-记忆类工具(mem0、Letta、Zep)不记成本;可观测类(Langfuse、Helicone、Phoenix)不做记忆;而且能打的几乎都要服务器或数据库。**Memstash 是唯一把"记忆 + 可观测 + 评测"放进一个本地文件**的工具 —— `pip install`,完事。
-
-| | 记忆 | 成本/可观测 | 评测 | 本地优先·无服务器 | 安装 |
-|---|:--:|:--:|:--:|:--:|---|
-| **Memstash** | ✅ | ✅ | ✅ | ✅ | `pip install memstash` |
-| mem0 | ✅ | ❌ | ❌ | ⚠️ 仅库;图谱/生产要数据库 | `pip` +(云) |
-| Langfuse | ❌ | ✅ | ✅ | ❌ Postgres + ClickHouse | Docker 全家桶 |
-| Zep / Graphiti | ✅ | ❌ | ❌ | ❌ 需图数据库 | Docker + 图数据库 |
-| simonw/llm | ❌ | 仅日志 | ❌ | ✅ | `pip` |
-
-### 你能得到什么
+### 功能特点
 
 - 🧠 **持久记忆** —— 跨会话、跨模型
 - 🔎 **混合检索** —— 语义 + BM25 关键词,融合排序(无额外依赖)
@@ -353,7 +347,7 @@ memstash benchmark
 
 ## 路线图
 
-见 [ROADMAP.md](ROADMAP.md):memstash 与 mem0 / Letta / Zep / Langfuse / LiteLLM / simonw 的 `llm` 的对比、强在哪、以及接下来的计划。
+见 [ROADMAP.md](ROADMAP.md):已完成的内容,以及接下来的计划。
 
 - [x] 从对话自动抽取记忆
 - [x] 预算提醒("你今天花了 $X")

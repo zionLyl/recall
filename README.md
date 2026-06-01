@@ -18,32 +18,24 @@ pipx install 'memstash[all]'      # or: pip install 'memstash[openai]'
 
 ---
 
-LLM apps have two chronic problems:
+Memstash gives any LLM **persistent memory** and records **what every call
+costs** — all in one local SQLite file.
 
-1. **They forget you.** Switch models or start a new session and you re-explain everything.
-2. **You can't see what they're doing.** Which model? How many tokens? How much did that cost?
+Teach it your preferences and facts once; it automatically pulls the relevant
+ones into your prompts, across sessions and across models. Every call's tokens,
+cost, and latency are logged so you can see — and cap — your spend. It runs
+entirely on your machine: no server, no account, nothing leaves your laptop.
 
-**Memstash fixes both, locally, for any model** — in a single SQLite file that holds
-your memories *and* every call's tokens/cost/latency. Switch GPT → Claude →
-DeepSeek → Qwen and your memory and your bill follow you. No server to run, no
-account to create, nothing leaves your laptop.
+### What you can do with it
 
-### Why Memstash
+- Give a chatbot or agent **long-term memory** that survives restarts and model switches.
+- Carry your context from GPT → Claude → a local Ollama model **without re-explaining yourself**.
+- **See and budget your token spend** — per call, per model, per day.
+- Make your **notes/docs searchable** by your assistant (`memstash ingest file.md`).
+- Let **Claude Desktop / Cursor** read & write the same memory over MCP.
+- **Capture an existing LangChain / OpenAI-SDK app's** calls into a local log.
 
-Memory tools (mem0, Letta, Zep) don't track cost; observability tools (Langfuse,
-Helicone, Phoenix) don't do memory; and the serious ones all want a server or a
-database. Memstash is the one tool that does **memory + observability + evals in a
-single local file** — `pip install`, done.
-
-| | memory | cost/obs | evals | local-first, no server | install |
-|---|:--:|:--:|:--:|:--:|---|
-| **Memstash** | ✅ | ✅ | ✅ | ✅ | `pip install memstash` |
-| mem0 | ✅ | ❌ | ❌ | ⚠️ lib-only; graph/prod needs a DB | `pip` + (cloud) |
-| Langfuse | ❌ | ✅ | ✅ | ❌ Postgres + ClickHouse | Docker stack |
-| Zep / Graphiti | ✅ | ❌ | ❌ | ❌ needs a graph DB | Docker + graph DB |
-| simonw/llm | ❌ | logs only | ❌ | ✅ | `pip` |
-
-### What you get
+### Features
 
 - 🧠 **Persistent memory** across sessions *and* across models
 - 🔎 **Hybrid retrieval** — semantic + BM25 keyword search, fused (no extra deps)
@@ -392,8 +384,7 @@ higher. Numbers are deterministic, so you can track them across changes.
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for how memstash compares to mem0 / Letta / Zep /
-Langfuse / LiteLLM / simonw's `llm`, what it does better, and what's planned next.
+See [ROADMAP.md](ROADMAP.md) for what's done and what's planned next.
 
 - [x] Auto-extract memories from conversations
 - [x] Budget alerts ("you've spent $X today")
